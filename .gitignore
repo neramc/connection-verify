@@ -1,3 +1,9 @@
+# IDE Config folder
+.idea/
+
+# Java archive file
+*.jar
+
 # Compiled class file
 *.class
 
