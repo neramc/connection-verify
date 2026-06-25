@@ -1,6 +1,9 @@
 # IDE Config folder
 .idea/
 
+# Maven build output
+target/
+
 # Java archive file
 *.jar
 

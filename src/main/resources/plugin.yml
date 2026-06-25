@@ -1,0 +1,24 @@
+# Connection Verify
+# A Paper plugin that verifies and records the connection information of
+# players who join (or fail to join) the server.
+name: connection-verify
+version: ${project.version}
+main: com.neramc.connectionverify.ConnectionVerifyPlugin
+api-version: '1.21'
+description: Verify and record the connection information of joining players.
+author: neramc
+website: https://github.com/neramc/connection-verify
+# This plugin only reacts to network/login events and writes plain text logs,
+# so it is safe to load before/after any other plugin.
+load: POSTWORLD
+
+commands:
+  cnt:
+    description: Save the connection log for the given 4-digit connection number to a file.
+    usage: /cnt <connection-number>
+    permission: connectionverify.cnt
+
+permissions:
+  connectionverify.cnt:
+    description: Allows saving connection logs through the /cnt command.
+    default: op

@@ -1,0 +1,16 @@
+# ============================================================================
+#  Connection Verify - configuration
+# ============================================================================
+
+# Print a "Connection number" line under the join message in the console
+# every time a player successfully connects.
+log-successful-connections: true
+
+# Print a "Connection number" line in the console every time a connection
+# attempt is denied (ban, whitelist, server full, kicked during login, ...).
+log-failed-connections: true
+
+# Name of the sub-folder (inside this plugin's data folder) where connection
+# logs are written when you run "cnt <number>".
+# The default produces: plugins/connection-verify/connection/<number>.txt
+log-folder: connection
