@@ -49,8 +49,11 @@ public final class ConnectionVerifyPlugin extends JavaPlugin {
                     + "connection logs cannot be saved!");
         }
 
-        getLogger().info("Connection Verify enabled. Logs are saved to: "
-                + logDirectory.getAbsolutePath());
+        getLogger().info("Connection Verify v" + getPluginMeta().getVersion() + " enabled.");
+        getLogger().info("  Log directory       : " + logDirectory.getAbsolutePath());
+        getLogger().info("  Log successful joins : " + logSuccessful);
+        getLogger().info("  Log failed attempts  : " + logFailed);
+        getLogger().info("  Save a log with      : cnt <4-digit connection number>");
     }
 
     @Override

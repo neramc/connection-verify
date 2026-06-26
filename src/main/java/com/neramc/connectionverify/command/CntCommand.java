@@ -64,11 +64,12 @@ public final class CntCommand implements CommandExecutor, TabCompleter {
 
         File directory = plugin.logDirectory();
         File file = new File(directory, number + ".txt");
+        byte[] content = record.render(Instant.now()).getBytes(StandardCharsets.UTF_8);
         try {
             if (directory != null && !directory.exists()) {
                 directory.mkdirs();
             }
-            Files.writeString(file.toPath(), record.render(Instant.now()), StandardCharsets.UTF_8);
+            Files.write(file.toPath(), content);
         } catch (IOException exception) {
             sender.sendMessage(Component.text(
                     "Failed to write the connection log: " + exception.getMessage(), NamedTextColor.RED));
@@ -76,9 +77,13 @@ public final class CntCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        sender.sendMessage(Component.text("Connection log for " + number + " saved to ", NamedTextColor.GREEN)
+        sender.sendMessage(Component.text("Connection log ", NamedTextColor.GREEN)
+                .append(Component.text(number, NamedTextColor.YELLOW))
+                .append(Component.text(" [" + record.status() + ", " + content.length + " bytes] saved to ",
+                        NamedTextColor.GREEN))
                 .append(Component.text(file.getAbsolutePath(), NamedTextColor.AQUA)));
-        plugin.getLogger().info("Saved connection log " + number + " -> " + file.getAbsolutePath());
+        plugin.getLogger().info("Saved connection log " + number
+                + " [" + record.status() + "] -> " + file.getAbsolutePath());
         return true;
     }
 

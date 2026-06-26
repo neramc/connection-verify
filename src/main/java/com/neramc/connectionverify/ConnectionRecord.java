@@ -142,10 +142,47 @@ public final class ConnectionRecord {
             this.title = title;
         }
 
-        /** Adds an entry. {@code null} values are rendered as {@code (unknown)}. */
+        /** Adds an entry from a direct value. {@code null} renders as {@code (unknown)}. */
         public Section add(String key, Object value) {
-            entries.put(key, value == null ? FALLBACK : String.valueOf(value));
+            entries.put(key, normalize(value == null ? null : String.valueOf(value)));
             return this;
         }
+
+        /**
+         * Adds an entry whose value is produced lazily and defensively.
+         *
+         * <p>If the supplier throws - for example an API method that is not
+         * present in this particular server build, or a value that is invalid
+         * in the current state - the failure is captured as
+         * {@code (unavailable: <reason>)} instead of aborting the whole
+         * snapshot. {@code null} still renders as {@code (unknown)}. This lets
+         * a single record gather as much detail as possible without any one
+         * field being able to break the capture.</p>
+         */
+        public Section add(String key, ValueSupplier supplier) {
+            String value;
+            try {
+                Object result = supplier.get();
+                value = result == null ? null : String.valueOf(result);
+            } catch (Throwable throwable) {
+                value = "(unavailable: " + throwable.getClass().getSimpleName() + ")";
+            }
+            entries.put(key, normalize(value));
+            return this;
+        }
+
+        private static String normalize(String value) {
+            return (value == null || value.isEmpty()) ? FALLBACK : value;
+        }
+    }
+
+    /**
+     * A value producer that is allowed to fail. Used by
+     * {@link Section#add(String, ValueSupplier)} so each captured field is
+     * isolated from the rest.
+     */
+    @FunctionalInterface
+    public interface ValueSupplier {
+        Object get() throws Exception;
     }
 }
