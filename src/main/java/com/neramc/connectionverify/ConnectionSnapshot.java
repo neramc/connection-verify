@@ -4,6 +4,9 @@ import com.destroystokyo.paper.ClientOption;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.neramc.connectionverify.ConnectionRecord.Section;
 import com.neramc.connectionverify.ConnectionRecord.Status;
+import io.papermc.paper.connection.PlayerConnection;
+import io.papermc.paper.connection.PlayerLoginConnection;
+import io.papermc.paper.event.connection.PlayerConnectionValidateLoginEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Location;
@@ -246,6 +249,49 @@ public final class ConnectionSnapshot {
     }
 
     // ------------------------------------------------------------------
+    //  Failure at the login validation / configuration stage
+    // ------------------------------------------------------------------
+
+    public static ConnectionRecord forValidateLogin(PlayerConnectionValidateLoginEvent event,
+                                                    ConnectionVerifyPlugin plugin) {
+        PlayerConnection connection = event.getConnection();
+        ConnectionRecord record = new ConnectionRecord(Status.FAILED);
+
+        captureContext(record, plugin, "PlayerConnectionValidateLoginEvent");
+
+        Section identity = record.section("Identity");
+        identity.add("Name", () -> profileName(connection));
+        identity.add("UUID", () -> profileId(connection));
+
+        Section network = record.section("Network");
+        network.add("Address", () -> String.valueOf(connection.getAddress()));
+        network.add("Client address", () -> socket(connection.getClientAddress()));
+        network.add("Virtual host", () -> socket(connection.getVirtualHost()));
+        network.add("HAProxy address", () -> socket(connection.getHAProxyAddress()));
+        network.add("Transferred", () -> connection.isTransferred());
+        network.add("Still connected", () -> connection.isConnected());
+
+        Section result = record.section("Result");
+        result.add("Stage", "PlayerConnectionValidateLogin");
+        result.add("Allowed", () -> event.isAllowed());
+        result.add("Kick message", () -> plain(event.getKickMessage()));
+
+        captureServer(record, plugin);
+        captureRuntime(record);
+        return record;
+    }
+
+    /** Best-effort player name for a validate-login failure (may be {@code null}). */
+    public static String nameOf(PlayerConnectionValidateLoginEvent event) {
+        try {
+            Object name = profileName(event.getConnection());
+            return name == null ? null : String.valueOf(name);
+        } catch (Throwable throwable) {
+            return null;
+        }
+    }
+
+    // ------------------------------------------------------------------
     //  Shared sections
     // ------------------------------------------------------------------
 
@@ -325,6 +371,39 @@ public final class ConnectionSnapshot {
 
     private static String host(InetAddress address) {
         return address == null ? null : address.getHostAddress();
+    }
+
+    private static String socket(InetSocketAddress address) {
+        return address == null ? null : address.getHostString() + ":" + address.getPort();
+    }
+
+    private static Object profileName(PlayerConnection connection) {
+        PlayerProfile profile = loginProfile(connection);
+        return profile == null ? null : profile.getName();
+    }
+
+    private static Object profileId(PlayerConnection connection) {
+        PlayerProfile profile = loginProfile(connection);
+        return profile == null ? null : profile.getId();
+    }
+
+    private static PlayerProfile loginProfile(PlayerConnection connection) {
+        if (!(connection instanceof PlayerLoginConnection login)) {
+            return null;
+        }
+        try {
+            PlayerProfile authenticated = login.getAuthenticatedProfile();
+            if (authenticated != null) {
+                return authenticated;
+            }
+        } catch (Throwable ignored) {
+            // Not authenticated yet - fall back to the unsafe (unverified) profile.
+        }
+        try {
+            return login.getUnsafeProfile();
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     private static String millis(long epochMillis) {

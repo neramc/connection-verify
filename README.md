@@ -20,13 +20,23 @@ server.
   Connection number 4821
   ```
 
-* When a connection **fails** (ban, whitelist, server full, kicked during
-  login, ...), a connection number is printed as well:
+* When a connection **fails**, a connection number is printed as well:
 
   ```
   Connection failed: Steve (KICK_BANNED)
   Connection number 7392
   ```
+
+  Failures are caught at every stage the Paper API exposes: pre-login
+  (`AsyncPlayerPreLoginEvent` — ban, whitelist, server full), login
+  (`PlayerLoginEvent` — plugin denials) and login/configuration validation
+  (`PlayerConnectionValidateLoginEvent`). A connection is rejected at exactly
+  one stage, so each failed attempt yields exactly one connection number.
+
+  > Note: a few rejections happen during the raw protocol handshake — most
+  > notably an incompatible client/server version — and are closed by the
+  > server before any plugin-observable event fires; those cannot be assigned
+  > a number.
 
 * Typing `cnt <number>` in the console writes the full connection details and
   metadata for that number to a text file:

@@ -3,6 +3,7 @@ package com.neramc.connectionverify;
 import com.neramc.connectionverify.command.CntCommand;
 import com.neramc.connectionverify.listener.ConnectionListener;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -67,22 +68,23 @@ public final class ConnectionVerifyPlugin extends JavaPlugin {
     }
 
     /**
-     * Sends one or more lines to the server console, hopping to the main thread
-     * first when called from an asynchronous login event so the Bukkit API is
-     * always touched from a safe thread.
+     * Sends one or more lines to the server console.
+     *
+     * <p>Failed connections are reported from asynchronous login threads, so the
+     * lines must reach the console regardless of which thread we are on. Paper's
+     * console audience is safe to message from any thread; should a particular
+     * server build ever reject an off-thread send, we fall back to the plugin
+     * logger so a connection number is never silently lost.</p>
      *
      * @param lines the console lines to print, in order
      */
     public void console(Component... lines) {
-        Runnable task = () -> {
-            for (Component line : lines) {
+        for (Component line : lines) {
+            try {
                 getServer().getConsoleSender().sendMessage(line);
+            } catch (Throwable throwable) {
+                getLogger().info(PlainTextComponentSerializer.plainText().serialize(line));
             }
-        };
-        if (getServer().isPrimaryThread()) {
-            task.run();
-        } else {
-            getServer().getScheduler().runTask(this, task);
         }
     }
 }

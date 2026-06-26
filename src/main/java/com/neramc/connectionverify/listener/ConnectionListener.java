@@ -4,6 +4,7 @@ import com.neramc.connectionverify.ConnectionRecord;
 import com.neramc.connectionverify.ConnectionRegistry;
 import com.neramc.connectionverify.ConnectionSnapshot;
 import com.neramc.connectionverify.ConnectionVerifyPlugin;
+import io.papermc.paper.event.connection.PlayerConnectionValidateLoginEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -24,6 +25,8 @@ import org.bukkit.event.player.PlayerLoginEvent;
  *       whitelist, server full, ...).</li>
  *   <li>{@link PlayerLoginEvent} - failures during login (plugin denials,
  *       ...).</li>
+ *   <li>{@link PlayerConnectionValidateLoginEvent} - login/validation-stage
+ *       failures that happen before or instead of the events above.</li>
  * </ul>
  *
  * <p>All handlers run at {@link EventPriority#MONITOR} so the final,
@@ -74,6 +77,22 @@ public final class ConnectionListener implements Listener {
         ConnectionRecord record = ConnectionSnapshot.forLogin(event, plugin);
         String number = registry.register(record);
         announceFailure(event.getPlayer().getName(), event.getResult().name(), number);
+    }
+
+    /**
+     * Catches login/validation-stage failures that occur before (or instead of)
+     * {@link AsyncPlayerPreLoginEvent} / {@link PlayerLoginEvent}. Because a
+     * connection is rejected at exactly one stage, this never double-reports a
+     * failure already covered by the handlers above.
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onValidateLogin(PlayerConnectionValidateLoginEvent event) {
+        if (!logFailed || event.isAllowed()) {
+            return;
+        }
+        ConnectionRecord record = ConnectionSnapshot.forValidateLogin(event, plugin);
+        String number = registry.register(record);
+        announceFailure(ConnectionSnapshot.nameOf(event), "VALIDATION_FAILED", number);
     }
 
     // ------------------------------------------------------------------
