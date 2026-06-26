@@ -1,5 +1,7 @@
 # Connection Verify
 
+[![Build](https://github.com/neramc/connection-verify/actions/workflows/build.yml/badge.svg)](https://github.com/neramc/connection-verify/actions/workflows/build.yml)
+
 A state-of-the-art **Paper** plugin that lets server operators verify the
 connection information of every player who joins — or fails to join — the
 server.
@@ -39,12 +41,32 @@ server.
   plugins/connection-verify/connection/4821.txt
   ```
 
-Each log file contains everything captured for that connection: identity
-(name, UUID, display name, entity id), network details (IP, port, virtual host,
-client brand, protocol version, ping, locale), session data (first join, first
-played, last login, op/whitelist status, game mode), player state, location,
-the join message, the login result/kick message for failures, and server
-context.
+Each log file is exhaustive — it records **everything** observable about the
+connection, grouped into sections:
+
+* **Capture** — event type, capturing thread, primary-thread flag.
+* **Identity** — name, display name, UUID, entity id.
+* **Profile** (failures) — Mojang profile name/id, completeness, textures.
+* **Network** — socket address, IP, port, virtual host, raw/real IP, hostname,
+  client brand, protocol version, ping, transfer flag, client/effective/
+  simulation view distances.
+* **Client options** — locale, main hand, chat & particle visibility, chat
+  colors, server-listing & text-filtering flags, skin parts.
+* **Session** — first join, first played, last login/seen, op, whitelist, ban,
+  game mode.
+* **Player state** — health/max health, hunger, saturation, exhaustion, xp,
+  movement speeds, flight, sneaking/sprinting, pose, air, fire, fall distance,
+  velocity, current input, spawn reason, scoreboard tags, potion effects.
+* **Location / World** — coordinates, respawn & last-death locations, world
+  difficulty, time, weather, pvp, entity/player counts, spawn.
+* **Result** (failures) — login stage, result, kick message.
+* **Server** — software, versions, MOTD, bind address, online mode, whitelist,
+  hardcore, game mode, distances, throttle, TPS, MSPT, tick manager, plugins.
+* **Runtime / Environment** — Java/JVM, OS, CPU, memory, uptime, working dir.
+
+Every field is captured defensively: a getter that is unavailable on a given
+server build is recorded as `(unavailable: …)` and missing values as
+`(unknown)`, so a log is never aborted by a single field.
 
 ## Commands & permissions
 
@@ -78,6 +100,13 @@ for the lifetime of the server session. Run `cnt <number>` while the server is
 still running to persist that connection's details to disk. Numbers are not
 retained across restarts.
 
+## Download
+
+Pre-built jars are published automatically to
+[**Releases**](https://github.com/neramc/connection-verify/releases). Grab
+`connection-verify-<version>.jar`, drop it into your server's `plugins/` folder
+and restart.
+
 ## Building
 
 Requires JDK 21 and Maven.
@@ -86,8 +115,18 @@ Requires JDK 21 and Maven.
 mvn clean package
 ```
 
-The plugin jar is produced at `target/connection-verify-1.21.10.jar`. Drop it
-into your server's `plugins/` folder and restart.
+The plugin jar is produced at `target/connection-verify-1.21.10.jar`.
+
+## Continuous integration & releases
+
+Every push to `main` and every pull request is built with JDK 21 by the
+[`Build`](.github/workflows/build.yml) GitHub Actions workflow, which uploads
+the compiled jar as a workflow artifact.
+
+When a build of `main` succeeds, the jar is published to GitHub Releases under
+the tag `v<plugin-version>` (e.g. `v1.21.10`). The release for the current
+version is refreshed on each successful `main` build, so bumping the
+`<version>` in `pom.xml` is what creates a brand-new release.
 
 ## License
 
