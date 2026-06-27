@@ -203,6 +203,25 @@ Jars are produced in `target/`.
 
 ---
 
+## Versioning
+
+The plugin version (`MAJOR.MINOR.PATCH`) lives in `pom.xml` as `<revision>` and
+is **bumped automatically by CI** on every push to `main`, based on how many
+files changed in that push:
+
+| Files changed | Result |
+|---------------|--------|
+| 1 – 21 | patch + 1 (e.g. `2.0.0` → `2.0.1`) |
+| 22 – 104 | minor + 1, patch → 0 (e.g. `2.0.5` → `2.1.0`) |
+| 105+, or when minor would reach 10 | major + 1, minor & patch → 0 (e.g. `2.9.5` → `3.0.0`) |
+
+`plugin.yml` and `build-info.properties` derive the version from `pom.xml`, so
+it is defined in exactly one place. The bump runs before the build, is committed
+back to `main` (with a skip-CI marker so it doesn't start another run), and the
+same version is applied to both jars and the release tag.
+
+---
+
 ## License
 
 Licensed under the **Apache License, Version 2.0**. Copyright 2026 neramc.
