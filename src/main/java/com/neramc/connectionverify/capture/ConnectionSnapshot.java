@@ -17,49 +17,74 @@ package com.neramc.connectionverify.capture;
 
 import com.destroystokyo.paper.ClientOption;
 import com.destroystokyo.paper.event.player.PlayerConnectionCloseEvent;
+import com.destroystokyo.paper.profile.PlayerProfile;
+import com.destroystokyo.paper.profile.ProfileProperty;
 import com.neramc.connectionverify.config.CaptureSettings;
 import com.neramc.connectionverify.connection.ConnectionRecord;
 import com.neramc.connectionverify.connection.ConnectionRecord.Section;
 import com.neramc.connectionverify.connection.ConnectionRecord.Status;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
+import org.bukkit.Registry;
 import org.bukkit.Server;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.util.Vector;
 
+import java.io.File;
+import java.lang.management.ClassLoadingMXBean;
 import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryUsage;
+import java.lang.management.OperatingSystemMXBean;
+import java.lang.management.RuntimeMXBean;
+import java.lang.management.ThreadMXBean;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
+import java.util.TimeZone;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * Builds richly detailed {@link ConnectionRecord}s from connection events.
+ * Builds richly detailed {@link ConnectionRecord}s from connection events -
+ * the kind of low-level, log-style detail an operator could want.
  *
- * <p>Each field is captured through a defensive value supplier, so an API
+ * <p>Every field is captured through a defensive value supplier, so an API
  * absent on the running server build is recorded as {@code (unavailable: ...)}
  * rather than aborting the capture. Which sections are captured, and whether
- * IP addresses / UUIDs are masked, is governed by {@link CaptureSettings}.</p>
+ * IP addresses / UUIDs are masked, is governed by {@link CaptureSettings}. Only
+ * APIs available across the whole supported range (1.21.4+) are referenced.</p>
  */
 public final class ConnectionSnapshot {
 
     private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
     private static final double BYTES_PER_MB = 1024.0D * 1024.0D;
+
+    private static final Pattern SKIN_URL = Pattern.compile("\"SKIN\"\\s*:\\s*\\{[^}]*?\"url\"\\s*:\\s*\"([^\"]+)\"");
+    private static final Pattern CAPE_URL = Pattern.compile("\"CAPE\"\\s*:\\s*\\{[^}]*?\"url\"\\s*:\\s*\"([^\"]+)\"");
+    private static final Pattern SKIN_MODEL = Pattern.compile("\"model\"\\s*:\\s*\"([^\"]+)\"");
 
     private ConnectionSnapshot() {
     }
@@ -74,126 +99,27 @@ public final class ConnectionSnapshot {
         captureContext(record, plugin, "PlayerJoinEvent");
 
         if (settings.identity()) {
-            Section identity = record.section("Identity");
-            identity.add("Name", player.getName());
-            identity.add("Display name", () -> plain(player.displayName()));
-            identity.add("UUID", () -> uuid(player.getUniqueId(), settings));
-            identity.add("Entity id", () -> player.getEntityId());
+            captureIdentity(record, player, settings);
         }
-
         if (settings.network()) {
-            Section network = record.section("Network");
-            network.add("IP address", () -> {
-                InetSocketAddress address = player.getAddress();
-                if (address == null) {
-                    return null;
-                }
-                InetAddress inet = address.getAddress();
-                return settings.maskIpAddress(inet != null ? inet.getHostAddress() : address.getHostString());
-            });
-            network.add("Port", () -> {
-                InetSocketAddress address = player.getAddress();
-                return address == null ? null : address.getPort();
-            });
-            network.add("Virtual host", () -> {
-                InetSocketAddress virtualHost = player.getVirtualHost();
-                return virtualHost == null ? null : virtualHost.getHostString() + ":" + virtualHost.getPort();
-            });
-            network.add("Client brand", player::getClientBrandName);
-            network.add("Protocol version", player::getProtocolVersion);
-            network.add("Ping (ms)", player::getPing);
-            network.add("Transferred", player::isTransferred);
-            network.add("Client view distance", player::getClientViewDistance);
-            network.add("Effective view distance", player::getViewDistance);
-            network.add("Simulation distance", player::getSimulationDistance);
+            captureNetwork(record, player, settings);
         }
-
         if (settings.clientOptions()) {
-            Section options = record.section("Client options");
-            options.add("Locale", player::locale);
-            options.add("Main hand", () -> player.getClientOption(ClientOption.MAIN_HAND));
-            options.add("Chat visibility", () -> player.getClientOption(ClientOption.CHAT_VISIBILITY));
-            options.add("Chat colors", () -> player.getClientOption(ClientOption.CHAT_COLORS_ENABLED));
-            options.add("Particle visibility", () -> player.getClientOption(ClientOption.PARTICLE_VISIBILITY));
-            options.add("Allow server listings", () -> player.getClientOption(ClientOption.ALLOW_SERVER_LISTINGS));
-            options.add("Text filtering", () -> player.getClientOption(ClientOption.TEXT_FILTERING_ENABLED));
-            options.add("View distance (option)", () -> player.getClientOption(ClientOption.VIEW_DISTANCE));
-            options.add("Skin parts", () -> player.getClientOption(ClientOption.SKIN_PARTS));
+            captureClientOptions(record, player);
         }
-
         if (settings.session()) {
-            Section session = record.section("Session");
-            session.add("First time on server", () -> !player.hasPlayedBefore());
-            session.add("First played", () -> millis(player.getFirstPlayed()));
-            session.add("Last login", () -> millis(player.getLastLogin()));
-            session.add("Last seen", () -> millis(player.getLastSeen()));
-            session.add("Operator", player::isOp);
-            session.add("Whitelisted", player::isWhitelisted);
-            session.add("Banned", player::isBanned);
-            session.add("Game mode", player::getGameMode);
+            captureSession(record, player);
         }
-
         if (settings.playerState()) {
-            Section state = record.section("Player state");
-            state.add("Health", () -> String.format(Locale.ROOT, "%.1f", player.getHealth()));
-            state.add("Max health", () -> {
-                AttributeInstance attribute = player.getAttribute(Attribute.MAX_HEALTH);
-                return attribute == null ? null : String.format(Locale.ROOT, "%.1f", attribute.getValue());
-            });
-            state.add("Food level", player::getFoodLevel);
-            state.add("Saturation", () -> String.format(Locale.ROOT, "%.2f", player.getSaturation()));
-            state.add("Exhaustion", () -> String.format(Locale.ROOT, "%.2f", player.getExhaustion()));
-            state.add("Experience level", player::getLevel);
-            state.add("Experience progress", () -> String.format(Locale.ROOT, "%.3f", player.getExp()));
-            state.add("Total experience", player::getTotalExperience);
-            state.add("Walk speed", () -> String.format(Locale.ROOT, "%.2f", player.getWalkSpeed()));
-            state.add("Fly speed", () -> String.format(Locale.ROOT, "%.2f", player.getFlySpeed()));
-            state.add("Allowed to fly", player::getAllowFlight);
-            state.add("Flying", player::isFlying);
-            state.add("Sneaking", player::isSneaking);
-            state.add("Sprinting", player::isSprinting);
-            state.add("Glowing", player::isGlowing);
-            state.add("In water", player::isInWater);
-            state.add("Pose", player::getPose);
-            state.add("Remaining air", player::getRemainingAir);
-            state.add("Maximum air", player::getMaximumAir);
-            state.add("Fire ticks", player::getFireTicks);
-            state.add("Fall distance", () -> String.format(Locale.ROOT, "%.2f", player.getFallDistance()));
-            state.add("Velocity", () -> vector(player.getVelocity()));
-            state.add("Current input", player::getCurrentInput);
-            state.add("Spawn reason", player::getEntitySpawnReason);
-            state.add("Scoreboard tags", player::getScoreboardTags);
-            state.add("Active potion effects", () -> potions(player.getActivePotionEffects()));
+            capturePlayerState(record, player);
+            captureAttributes(record, player);
+            captureEquipment(record, player);
         }
-
         if (settings.location()) {
-            Section location = record.section("Location");
-            location.add("Current", () -> location(player.getLocation()));
-            location.add("Block coordinates", () -> {
-                Location loc = player.getLocation();
-                return "x=" + loc.getBlockX() + ", y=" + loc.getBlockY() + ", z=" + loc.getBlockZ();
-            });
-            location.add("Respawn location", () -> location(player.getRespawnLocation()));
-            location.add("Last death location", () -> location(player.getLastDeathLocation()));
+            captureLocation(record, player);
         }
-
         if (settings.world()) {
-            Section world = record.section("World");
-            World playerWorld = player.getWorld();
-            world.add("Name", playerWorld::getName);
-            world.add("Environment", playerWorld::getEnvironment);
-            world.add("Difficulty", playerWorld::getDifficulty);
-            world.add("PVP", playerWorld::getPVP);
-            world.add("Time", playerWorld::getTime);
-            world.add("Full time", playerWorld::getFullTime);
-            world.add("Game time", playerWorld::getGameTime);
-            world.add("Storm", playerWorld::hasStorm);
-            world.add("Thundering", playerWorld::isThundering);
-            world.add("Players in world", playerWorld::getPlayerCount);
-            world.add("Entities in world", playerWorld::getEntityCount);
-            world.add("View distance", playerWorld::getViewDistance);
-            world.add("Simulation distance", playerWorld::getSimulationDistance);
-            world.add("Spawn location", () -> location(playerWorld.getSpawnLocation()));
+            captureWorld(record, player.getWorld());
         }
 
         Section join = record.section("Join");
@@ -216,8 +142,8 @@ public final class ConnectionSnapshot {
             Section identity = record.section("Identity");
             identity.add("Name", event.getName());
             identity.add("UUID", () -> uuid(event.getUniqueId(), settings));
+            identity.add("UUID version", () -> event.getUniqueId().version());
         }
-
         if (settings.network()) {
             Section network = record.section("Network");
             network.add("IP address", () -> ip(event.getAddress(), settings));
@@ -249,7 +175,6 @@ public final class ConnectionSnapshot {
             identity.add("Name", player.getName());
             identity.add("UUID", () -> uuid(player.getUniqueId(), settings));
         }
-
         if (settings.network()) {
             Section network = record.section("Network");
             network.add("IP address", () -> ip(event.getAddress(), settings));
@@ -280,7 +205,6 @@ public final class ConnectionSnapshot {
             identity.add("Name", event.getPlayerName());
             identity.add("UUID", () -> uuid(event.getPlayerUniqueId(), settings));
         }
-
         if (settings.network()) {
             Section network = record.section("Network");
             network.add("IP address", () -> ip(event.getIpAddress(), settings));
@@ -296,7 +220,234 @@ public final class ConnectionSnapshot {
     }
 
     // ------------------------------------------------------------------
-    //  Shared sections
+    //  Player sections (successful join)
+    // ------------------------------------------------------------------
+
+    private static void captureIdentity(ConnectionRecord record, Player player, CaptureSettings settings) {
+        Section identity = record.section("Identity");
+        identity.add("Name", player.getName());
+        identity.add("Display name", () -> plain(player.displayName()));
+        identity.add("Player list name", () -> plain(player.playerListName()));
+        identity.add("UUID", () -> uuid(player.getUniqueId(), settings));
+        identity.add("UUID version", () -> player.getUniqueId().version());
+        identity.add("Entity id", player::getEntityId);
+
+        Textures textures = textures(player);
+        identity.add("Profile properties", textures.propertyCount());
+        identity.add("Skin model", textures.model());
+        identity.add("Skin URL", textures.skinUrl());
+        identity.add("Cape URL", textures.capeUrl());
+        identity.add("Textures signed", textures.signed());
+    }
+
+    private static void captureNetwork(ConnectionRecord record, Player player, CaptureSettings settings) {
+        Section network = record.section("Network");
+        network.add("IP address", () -> {
+            InetSocketAddress address = player.getAddress();
+            if (address == null) {
+                return null;
+            }
+            InetAddress inet = address.getAddress();
+            return settings.maskIpAddress(inet != null ? inet.getHostAddress() : address.getHostString());
+        });
+        network.add("Port", () -> {
+            InetSocketAddress address = player.getAddress();
+            return address == null ? null : address.getPort();
+        });
+        network.add("Virtual host", () -> {
+            InetSocketAddress virtualHost = player.getVirtualHost();
+            return virtualHost == null ? null : virtualHost.getHostString() + ":" + virtualHost.getPort();
+        });
+        network.add("Client brand", player::getClientBrandName);
+        network.add("Protocol version", player::getProtocolVersion);
+        network.add("Ping (ms)", player::getPing);
+        network.add("Transferred", player::isTransferred);
+        network.add("Client view distance", player::getClientViewDistance);
+        network.add("Effective view distance", player::getViewDistance);
+        network.add("Simulation distance", player::getSimulationDistance);
+    }
+
+    private static void captureClientOptions(ConnectionRecord record, Player player) {
+        Section options = record.section("Client options");
+        options.add("Locale", player::locale);
+        options.add("Main hand", () -> player.getClientOption(ClientOption.MAIN_HAND));
+        options.add("Chat visibility", () -> player.getClientOption(ClientOption.CHAT_VISIBILITY));
+        options.add("Chat colors", () -> player.getClientOption(ClientOption.CHAT_COLORS_ENABLED));
+        options.add("Particle visibility", () -> player.getClientOption(ClientOption.PARTICLE_VISIBILITY));
+        options.add("Allow server listings", () -> player.getClientOption(ClientOption.ALLOW_SERVER_LISTINGS));
+        options.add("Text filtering", () -> player.getClientOption(ClientOption.TEXT_FILTERING_ENABLED));
+        options.add("View distance (option)", () -> player.getClientOption(ClientOption.VIEW_DISTANCE));
+        options.add("Skin parts", () -> player.getClientOption(ClientOption.SKIN_PARTS));
+    }
+
+    private static void captureSession(ConnectionRecord record, Player player) {
+        Section session = record.section("Session");
+        session.add("First time on server", () -> !player.hasPlayedBefore());
+        session.add("First played", () -> millis(player.getFirstPlayed()));
+        session.add("Last login", () -> millis(player.getLastLogin()));
+        session.add("Last seen", () -> millis(player.getLastSeen()));
+        session.add("Operator", player::isOp);
+        session.add("Whitelisted", player::isWhitelisted);
+        session.add("Banned", player::isBanned);
+        session.add("Game mode", player::getGameMode);
+        session.add("Previous game mode", player::getPreviousGameMode);
+    }
+
+    private static void capturePlayerState(ConnectionRecord record, Player player) {
+        Section state = record.section("Player state");
+        state.add("Health", () -> String.format(Locale.ROOT, "%.1f", player.getHealth()));
+        state.add("Health scale", () -> String.format(Locale.ROOT, "%.1f", player.getHealthScale()));
+        state.add("Food level", player::getFoodLevel);
+        state.add("Saturation", () -> String.format(Locale.ROOT, "%.2f", player.getSaturation()));
+        state.add("Exhaustion", () -> String.format(Locale.ROOT, "%.2f", player.getExhaustion()));
+        state.add("Experience level", player::getLevel);
+        state.add("Experience progress", () -> String.format(Locale.ROOT, "%.3f", player.getExp()));
+        state.add("Total experience", player::getTotalExperience);
+        state.add("Walk speed", () -> String.format(Locale.ROOT, "%.2f", player.getWalkSpeed()));
+        state.add("Fly speed", () -> String.format(Locale.ROOT, "%.2f", player.getFlySpeed()));
+        state.add("Allowed to fly", player::getAllowFlight);
+        state.add("Flying", player::isFlying);
+        state.add("Sneaking", player::isSneaking);
+        state.add("Sprinting", player::isSprinting);
+        state.add("Swimming", player::isSwimming);
+        state.add("Climbing", player::isClimbing);
+        state.add("Gliding", player::isGliding);
+        state.add("Sleeping", player::isSleeping);
+        state.add("Sleep ticks", player::getSleepTicks);
+        state.add("Glowing", player::isGlowing);
+        state.add("Invulnerable", player::isInvulnerable);
+        state.add("Silent", player::isSilent);
+        state.add("Leashed", player::isLeashed);
+        state.add("On ground", player::isOnGround);
+        state.add("In water", player::isInWater);
+        state.add("Pose", player::getPose);
+        state.add("Remaining air", player::getRemainingAir);
+        state.add("Maximum air", player::getMaximumAir);
+        state.add("Fire ticks", player::getFireTicks);
+        state.add("Freeze ticks", player::getFreezeTicks);
+        state.add("Arrows in body", player::getArrowsInBody);
+        state.add("No-damage ticks", player::getNoDamageTicks);
+        state.add("Max no-damage ticks", player::getMaximumNoDamageTicks);
+        state.add("Last damage", () -> String.format(Locale.ROOT, "%.2f", player.getLastDamage()));
+        state.add("Portal cooldown", player::getPortalCooldown);
+        state.add("Fall distance", () -> String.format(Locale.ROOT, "%.2f", player.getFallDistance()));
+        state.add("Velocity", () -> vector(player.getVelocity()));
+        state.add("Eye height", () -> String.format(Locale.ROOT, "%.2f", player.getEyeHeight()));
+        state.add("Bounding box (w x h)",
+                () -> String.format(Locale.ROOT, "%.2f x %.2f", player.getWidth(), player.getHeight()));
+        state.add("Hand raised", player::isHandRaised);
+        state.add("Active item", () -> describeItem(player.getActiveItem()));
+        state.add("Active item time left", player::getActiveItemRemainingTime);
+        state.add("Inside vehicle", player::isInsideVehicle);
+        state.add("Vehicle", () -> {
+            var vehicle = player.getVehicle();
+            return vehicle == null ? null : vehicle.getType().getKey().getKey();
+        });
+        state.add("Current input", player::getCurrentInput);
+        state.add("Spawn reason", player::getEntitySpawnReason);
+        state.add("Scoreboard tags", player::getScoreboardTags);
+        state.add("Active potion effects", () -> potions(player.getActivePotionEffects()));
+    }
+
+    private static void captureAttributes(ConnectionRecord record, Player player) {
+        Section attributes = record.section("Attributes");
+        try {
+            for (Attribute attribute : Registry.ATTRIBUTE) {
+                AttributeInstance instance;
+                try {
+                    instance = player.getAttribute(attribute);
+                } catch (Throwable ignored) {
+                    continue;
+                }
+                if (instance == null) {
+                    continue;
+                }
+                attributes.add(attribute.getKey().getKey(), String.format(Locale.ROOT,
+                        "%.3f (base %.3f)", instance.getValue(), instance.getBaseValue()));
+            }
+        } catch (Throwable throwable) {
+            attributes.add("attributes", "(unavailable: " + throwable.getClass().getSimpleName() + ")");
+        }
+    }
+
+    private static void captureEquipment(ConnectionRecord record, Player player) {
+        Section equipment = record.section("Equipment & inventory");
+        PlayerInventory inventory = player.getInventory();
+        equipment.add("Held slot", inventory::getHeldItemSlot);
+        equipment.add("Main hand", () -> describeItem(inventory.getItemInMainHand()));
+        equipment.add("Off hand", () -> describeItem(inventory.getItemInOffHand()));
+        equipment.add("Helmet", () -> describeItem(inventory.getHelmet()));
+        equipment.add("Chestplate", () -> describeItem(inventory.getChestplate()));
+        equipment.add("Leggings", () -> describeItem(inventory.getLeggings()));
+        equipment.add("Boots", () -> describeItem(inventory.getBoots()));
+        equipment.add("Inventory slots used", () -> usedSlots(inventory.getContents()));
+        equipment.add("Ender chest slots used", () -> usedSlots(player.getEnderChest().getContents()));
+    }
+
+    private static void captureLocation(ConnectionRecord record, Player player) {
+        Section location = record.section("Location");
+        location.add("Current", () -> location(player.getLocation()));
+        location.add("Block coordinates", () -> {
+            Location loc = player.getLocation();
+            return "x=" + loc.getBlockX() + ", y=" + loc.getBlockY() + ", z=" + loc.getBlockZ();
+        });
+        location.add("Direction (yaw/pitch)", () -> {
+            Location loc = player.getLocation();
+            return String.format(Locale.ROOT, "%.1f / %.1f", loc.getYaw(), loc.getPitch());
+        });
+        location.add("Facing", player::getFacing);
+        location.add("Eye location", () -> location(player.getEyeLocation()));
+        location.add("Biome", () -> blockAtFeet(player).getBiome().getKey().getKey());
+        location.add("Block at feet", () -> blockAtFeet(player).getType().getKey().getKey());
+        location.add("Block below", () -> player.getLocation().subtract(0, 1, 0).getBlock().getType().getKey().getKey());
+        location.add("Light level", () -> blockAtFeet(player).getLightLevel());
+        location.add("Sky light", () -> blockAtFeet(player).getLightFromSky());
+        location.add("Block light", () -> blockAtFeet(player).getLightFromBlocks());
+        location.add("Chunk", () -> {
+            Chunk chunk = player.getLocation().getChunk();
+            return "x=" + chunk.getX() + ", z=" + chunk.getZ()
+                    + ", inhabited=" + chunk.getInhabitedTime() + "t, forceLoaded=" + chunk.isForceLoaded();
+        });
+        location.add("Respawn location", () -> location(player.getRespawnLocation()));
+        location.add("Last death location", () -> location(player.getLastDeathLocation()));
+    }
+
+    private static void captureWorld(ConnectionRecord record, World world) {
+        Section section = record.section("World");
+        section.add("Name", world::getName);
+        section.add("Environment", world::getEnvironment);
+        section.add("Difficulty", world::getDifficulty);
+        section.add("Hardcore", world::isHardcore);
+        section.add("PVP", world::getPVP);
+        section.add("Time", world::getTime);
+        section.add("Full time", world::getFullTime);
+        section.add("Game time", world::getGameTime);
+        section.add("Moon phase", () -> (world.getFullTime() / 24_000L) % 8L);
+        section.add("Storm", world::hasStorm);
+        section.add("Thundering", world::isThundering);
+        section.add("Players in world", world::getPlayerCount);
+        section.add("Entities in world", world::getEntityCount);
+        section.add("Loaded chunks", () -> world.getLoadedChunks().length);
+        section.add("View distance", world::getViewDistance);
+        section.add("Simulation distance", world::getSimulationDistance);
+        section.add("Min height", world::getMinHeight);
+        section.add("Max height", world::getMaxHeight);
+        section.add("Sea level", world::getSeaLevel);
+        section.add("Keep spawn loaded", world::getKeepSpawnInMemory);
+        section.add("Allow monsters", world::getAllowMonsters);
+        section.add("Allow animals", world::getAllowAnimals);
+        section.add("Spawn location", () -> location(world.getSpawnLocation()));
+        section.add("Border size", () -> world.getWorldBorder().getSize());
+        section.add("Border center", () -> {
+            Location center = world.getWorldBorder().getCenter();
+            return String.format(Locale.ROOT, "x=%.1f, z=%.1f", center.getX(), center.getZ());
+        });
+        section.add("Border damage amount", () -> world.getWorldBorder().getDamageAmount());
+        section.add("Border warning distance", () -> world.getWorldBorder().getWarningDistance());
+    }
+
+    // ------------------------------------------------------------------
+    //  Shared sections (server + runtime)
     // ------------------------------------------------------------------
 
     private static void captureContext(ConnectionRecord record, JavaPlugin plugin, String event) {
@@ -331,13 +482,30 @@ public final class ConnectionSnapshot {
         section.add("Whitelist enabled", server::hasWhitelist);
         section.add("Whitelist enforced", server::isWhitelistEnforced);
         section.add("Hardcore", server::isHardcore);
+        section.add("Allow nether", server::getAllowNether);
+        section.add("Allow end", server::getAllowEnd);
         section.add("Default game mode", server::getDefaultGameMode);
         section.add("View distance", server::getViewDistance);
         section.add("Simulation distance", server::getSimulationDistance);
+        section.add("Spawn radius", server::getSpawnRadius);
+        section.add("Idle timeout (min)", server::getIdleTimeout);
+        section.add("Max world size", server::getMaxWorldSize);
         section.add("Connection throttle (ms)", server::getConnectionThrottle);
         section.add("Max players", server::getMaxPlayers);
+        section.add("Operators", () -> server.getOperators().size());
+        section.add("Whitelisted players", () -> server.getWhitelistedPlayers().size());
+        section.add("Banned players", () -> server.getBannedPlayers().size());
+        section.add("IP bans", () -> server.getIPBans().size());
         if (server.isPrimaryThread()) {
-            section.add("Players online", () -> server.getOnlinePlayers().size());
+            section.add("Players online", () -> server.getOnlinePlayers().size() + " / " + server.getMaxPlayers());
+            section.add("Online players", () -> server.getOnlinePlayers().stream()
+                    .map(Player::getName).sorted(String.CASE_INSENSITIVE_ORDER).collect(Collectors.joining(", ")));
+            section.add("Worlds", () -> server.getWorlds().stream()
+                    .map(world -> world.getName() + " (" + world.getEnvironment()
+                            + ", players=" + world.getPlayerCount()
+                            + ", chunks=" + world.getLoadedChunks().length
+                            + ", entities=" + world.getEntityCount() + ")")
+                    .collect(Collectors.joining(", ")));
         }
         section.add("TPS (1m, 5m, 15m)", () -> tps(server.getTPS()));
         section.add("MSPT (avg tick)", () -> String.format(Locale.ROOT, "%.2f ms", server.getAverageTickTime()));
@@ -353,27 +521,127 @@ public final class ConnectionSnapshot {
         Section section = record.section("Runtime / Environment");
         section.add("Java version", () -> System.getProperty("java.version"));
         section.add("Java vendor", () -> System.getProperty("java.vendor"));
-        section.add("JVM", () -> System.getProperty("java.vm.name") + " " + System.getProperty("java.vm.version"));
+        RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
+        section.add("JVM", () -> runtimeBean.getVmName() + " " + runtimeBean.getVmVersion());
+        section.add("JVM vendor", runtimeBean::getVmVendor);
+        section.add("JVM spec version", runtimeBean::getSpecVersion);
+        section.add("JVM flags", () -> runtimeBean.getInputArguments().size() + " arguments");
         section.add("Operating system", () -> System.getProperty("os.name")
                 + " " + System.getProperty("os.version") + " (" + System.getProperty("os.arch") + ")");
         section.add("Available processors", runtime::availableProcessors);
+
+        OperatingSystemMXBean os = ManagementFactory.getOperatingSystemMXBean();
+        section.add("System load average", () -> {
+            double load = os.getSystemLoadAverage();
+            return load < 0 ? "(unavailable)" : String.format(Locale.ROOT, "%.2f", load);
+        });
+
         section.add("Max memory", () -> bytes(runtime.maxMemory()));
         section.add("Total memory", () -> bytes(runtime.totalMemory()));
         section.add("Free memory", () -> bytes(runtime.freeMemory()));
         section.add("Used memory", () -> bytes(runtime.totalMemory() - runtime.freeMemory()));
-        section.add("Server uptime", () -> duration(ManagementFactory.getRuntimeMXBean().getUptime()));
+        MemoryMXBean memory = ManagementFactory.getMemoryMXBean();
+        section.add("Heap memory", () -> usage(memory.getHeapMemoryUsage()));
+        section.add("Non-heap memory", () -> usage(memory.getNonHeapMemoryUsage()));
+        section.add("Garbage collectors", () -> ManagementFactory.getGarbageCollectorMXBeans().stream()
+                .map(gc -> gc.getName() + " (count=" + gc.getCollectionCount() + ", time=" + gc.getCollectionTime() + "ms)")
+                .collect(Collectors.joining(", ")));
+
+        ThreadMXBean threads = ManagementFactory.getThreadMXBean();
+        section.add("Live threads", threads::getThreadCount);
+        section.add("Peak threads", threads::getPeakThreadCount);
+        section.add("Daemon threads", threads::getDaemonThreadCount);
+        section.add("Total started threads", threads::getTotalStartedThreadCount);
+
+        ClassLoadingMXBean classes = ManagementFactory.getClassLoadingMXBean();
+        section.add("Loaded classes", classes::getLoadedClassCount);
+        section.add("Total loaded classes", classes::getTotalLoadedClassCount);
+        section.add("Unloaded classes", classes::getUnloadedClassCount);
+
+        section.add("Server uptime", () -> duration(runtimeBean.getUptime()));
+        section.add("JVM started", () -> ConnectionRecord.formatTimestamp(Instant.ofEpochMilli(runtimeBean.getStartTime())));
+        section.add("File encoding", () -> System.getProperty("file.encoding"));
+        section.add("Default charset", () -> Charset.defaultCharset().name());
+        section.add("Default locale", () -> Locale.getDefault().toString());
+        section.add("Timezone", () -> TimeZone.getDefault().getID());
         section.add("Working directory", () -> System.getProperty("user.dir"));
+        section.add("Disk (server dir)", () -> {
+            File dir = new File(".").getAbsoluteFile();
+            return bytes(dir.getUsableSpace()) + " free / " + bytes(dir.getTotalSpace()) + " total";
+        });
     }
 
     // ------------------------------------------------------------------
-    //  Formatting helpers
+    //  Helpers
     // ------------------------------------------------------------------
+
+    private record Textures(Integer propertyCount, String model, String skinUrl, String capeUrl, Boolean signed) {
+    }
+
+    private static Textures textures(Player player) {
+        try {
+            PlayerProfile profile = player.getPlayerProfile();
+            if (profile == null) {
+                return new Textures(null, null, null, null, null);
+            }
+            int count = profile.getProperties().size();
+            for (ProfileProperty property : profile.getProperties()) {
+                if (!"textures".equals(property.getName())) {
+                    continue;
+                }
+                String json = new String(Base64.getDecoder().decode(property.getValue()), StandardCharsets.UTF_8);
+                String model = group(SKIN_MODEL, json);
+                return new Textures(count, model == null ? "classic" : model,
+                        group(SKIN_URL, json), group(CAPE_URL, json), property.isSigned());
+            }
+            return new Textures(count, null, null, null, null);
+        } catch (Throwable throwable) {
+            return new Textures(null, null, null, null, null);
+        }
+    }
+
+    private static String group(Pattern pattern, String input) {
+        Matcher matcher = pattern.matcher(input);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    private static Block blockAtFeet(Player player) {
+        return player.getWorld().getBlockAt(player.getLocation());
+    }
+
+    private static String describeItem(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return "empty";
+        }
+        return item.getType().getKey().getKey() + " x" + item.getAmount();
+    }
+
+    private static String usedSlots(ItemStack[] contents) {
+        if (contents == null) {
+            return null;
+        }
+        int used = 0;
+        for (ItemStack item : contents) {
+            if (item != null && !item.getType().isAir()) {
+                used++;
+            }
+        }
+        return used + " / " + contents.length;
+    }
+
+    private static String usage(MemoryUsage usage) {
+        if (usage == null) {
+            return null;
+        }
+        return bytes(usage.getUsed()) + " used / " + bytes(usage.getCommitted()) + " committed / "
+                + (usage.getMax() < 0 ? "no max" : bytes(usage.getMax()));
+    }
 
     private static String plain(Component component) {
         return component == null ? null : PLAIN.serialize(component);
     }
 
-    private static String uuid(UUID id, CaptureSettings settings) {
+    private static String uuid(java.util.UUID id, CaptureSettings settings) {
         if (id == null) {
             return null;
         }
