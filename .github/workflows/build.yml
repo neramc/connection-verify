@@ -165,3 +165,14 @@ jobs:
             1.21.10
             1.21.11
           changelog: "See https://github.com/neramc/connection-verify/releases/tag/${{ steps.meta.outputs.tag }}"
+
+      - name: Sync Modrinth description (optional)
+        if: ${{ env.MODRINTH_TOKEN != '' && hashFiles('resources/modrinth.md') != '' }}
+        continue-on-error: true
+        run: |
+          body="$(jq -Rs . < resources/modrinth.md)"
+          curl -fsS -X PATCH "https://api.modrinth.com/v2/project/connection-verify" \
+            -H "Authorization: ${MODRINTH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"body\": ${body}}"
+          echo "Modrinth description synced from resources/modrinth.md"
