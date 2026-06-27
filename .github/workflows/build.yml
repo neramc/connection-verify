@@ -184,6 +184,7 @@ jobs:
       contents: write
     env:
       MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+      MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID }}
       VERSION: ${{ needs.version.outputs.version }}
       TAG: v${{ needs.version.outputs.version }}
       TARGET_SHA: ${{ needs.version.outputs.sha }}
@@ -213,12 +214,14 @@ jobs:
           Built from commit ${TARGET_SHA}." \
             --latest
 
+      # Requires two repo settings (both skipped cleanly until present):
+      #   * secret   MODRINTH_TOKEN       - a Modrinth PAT with "Create versions"
+      #   * variable MODRINTH_PROJECT_ID  - the base62 project ID (NOT the slug)
       - name: Publish to Modrinth (optional)
-        if: ${{ env.MODRINTH_TOKEN != '' }}
-        continue-on-error: true
+        if: ${{ env.MODRINTH_TOKEN != '' && env.MODRINTH_PROJECT_ID != '' }}
         uses: Kir-Antipov/mc-publish@v3.3
         with:
-          modrinth-id: connection-verify
+          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           files: dist/connection-verify-*.jar
           name: Connection Verify ${{ needs.version.outputs.version }}
