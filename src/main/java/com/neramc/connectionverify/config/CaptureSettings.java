@@ -28,6 +28,7 @@ package com.neramc.connectionverify.config;
  * @param world          capture world context (difficulty, weather, ...)
  * @param server         capture server context (versions, TPS, plugins, ...)
  * @param runtime        capture JVM/OS runtime context
+ * @param system         capture deep system / hardware / JVM-internals context
  * @param maskIp         mask player IP addresses in output and logs
  * @param maskIpSegments number of trailing IPv4 segments to mask (1-4)
  * @param hideUuid       replace UUIDs with a redaction marker
@@ -42,6 +43,7 @@ public record CaptureSettings(
         boolean world,
         boolean server,
         boolean runtime,
+        boolean system,
         boolean maskIp,
         int maskIpSegments,
         boolean hideUuid) {

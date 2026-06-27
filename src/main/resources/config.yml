@@ -76,6 +76,8 @@ capture:
   world: true           # world name, difficulty, weather, counts, ...
   server: true          # versions, MOTD, TPS, MSPT, plugins, ...
   runtime: true         # Java, OS, CPU, memory, uptime
+  system: true          # deep host/hardware/JVM internals (CPU load, swap,
+                        # memory pools, GC, threads, network interfaces, ...)
 
 # ----------------------------------------------------------------------------
 #  Privacy (helpful for GDPR-conscious networks)
