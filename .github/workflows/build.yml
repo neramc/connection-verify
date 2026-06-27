@@ -16,10 +16,94 @@ concurrency:
 
 jobs:
   # --------------------------------------------------------------------------
+  #  0. Resolve (and, on main, bump) the version BEFORE anything is built.
+  #
+  #     The version lives in pom.xml as <revision>; plugin.yml and
+  #     build-info.properties derive it at build time, so this is the single
+  #     source of truth. On a push to main the new version is computed from the
+  #     number of changed files and committed back (with [skip ci] so the bump
+  #     commit does not start another run):
+  #       *   1 - 21 files  -> patch + 1
+  #       *  22 - 104 files -> minor + 1, patch = 0
+  #       * 105+ files OR minor would reach 10 -> major + 1, minor = patch = 0
+  # --------------------------------------------------------------------------
+  version:
+    name: Resolve & bump version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      sha: ${{ steps.bump.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve & bump
+        id: bump
+        env:
+          GH_EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          current="$(sed -n 's/.*<revision>\(.*\)<\/revision>.*/\1/p' pom.xml | head -1)"
+          [ -n "$current" ] || current="0.0.0"
+          major="${current%%.*}"; rest="${current#*.}"; minor="${rest%%.*}"; patch="${rest##*.}"
+
+          new="$current"
+          out_sha="$SHA"
+
+          # Only bump on a real push to main.
+          if [ "$GH_EVENT" = "push" ] && [ "$REF" = "refs/heads/main" ]; then
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              count="$(git diff --name-only HEAD~1..HEAD 2>/dev/null | wc -l | tr -d ' ' || echo 1)"
+            else
+              count="$(git diff --name-only "$BEFORE".."$SHA" | wc -l | tr -d ' ')"
+            fi
+            [ -n "$count" ] || count=0
+            echo "Changed files in this push: $count"
+
+            if [ "$count" -ge 105 ]; then
+              major=$((major + 1)); minor=0; patch=0
+            elif [ "$count" -ge 22 ]; then
+              minor=$((minor + 1)); patch=0
+              if [ "$minor" -ge 10 ]; then major=$((major + 1)); minor=0; patch=0; fi
+            elif [ "$count" -ge 1 ]; then
+              patch=$((patch + 1))
+            fi
+            new="${major}.${minor}.${patch}"
+          fi
+
+          echo "Version: ${current} -> ${new}"
+
+          if [ "$new" != "$current" ]; then
+            sed -i "s|<revision>[^<]*</revision>|<revision>${new}</revision>|" pom.xml
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add pom.xml
+            git commit -m "chore(release): bump version to ${new} [skip ci]"
+            git push origin "HEAD:${REF#refs/heads/}"
+            out_sha="$(git rev-parse HEAD)"
+          fi
+
+          {
+            echo "version=${new}"
+            echo "sha=${out_sha}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        run: echo "Resolved version **${{ steps.bump.outputs.version }}**" >> "$GITHUB_STEP_SUMMARY"
+
+  # --------------------------------------------------------------------------
   #  1. Validate the bundled resources before spending time on a compile.
   # --------------------------------------------------------------------------
   validate:
     name: Validate resources
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -52,7 +136,7 @@ jobs:
   # --------------------------------------------------------------------------
   build:
     name: Build ${{ matrix.target.id }} (JDK ${{ matrix.target.java }})
-    needs: validate
+    needs: [ version, validate ]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -74,6 +158,7 @@ jobs:
       - name: Build & verify
         run: >
           mvn -B -ntp clean verify
+          -Drevision=${{ needs.version.outputs.version }}
           -Dpaper.version=${{ matrix.target.paper }}
           -Dmaven.compiler.release=${{ matrix.target.java }}
           -Dapi.version=${{ matrix.target.api }}
@@ -92,13 +177,16 @@ jobs:
   # --------------------------------------------------------------------------
   release:
     name: Publish release
-    needs: build
+    needs: [ version, build ]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
       MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: v${{ needs.version.outputs.version }}
+      TARGET_SHA: ${{ needs.version.outputs.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -109,36 +197,20 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Resolve version
-        id: meta
-        run: |
-          jar="$(ls dist/connection-verify-*-mc26.jar | head -n1)"
-          file="$(basename "$jar")"
-          version="${file#connection-verify-}"
-          version="${version%-mc26.jar}"
-          {
-            echo "version=$version"
-            echo "tag=v$version"
-          } >> "$GITHUB_OUTPUT"
-          echo "Resolved version: $version"
-          ls -la dist
-
       - name: Publish to GitHub Releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag="${{ steps.meta.outputs.tag }}"
-          version="${{ steps.meta.outputs.version }}"
-          gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$tag" dist/connection-verify-*.jar \
-            --target "${GITHUB_SHA}" \
-            --title "Connection Verify ${version}" \
-            --notes "Automated release of Connection Verify \`${version}\`.
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" dist/connection-verify-*.jar \
+            --target "${TARGET_SHA}" \
+            --title "Connection Verify ${VERSION}" \
+            --notes "Automated release of Connection Verify \`${VERSION}\`.
 
-          - \`connection-verify-${version}-mc1.21.jar\` - Minecraft 1.21.4 - 1.21.x (Java 21+)
-          - \`connection-verify-${version}-mc26.jar\` - Minecraft 26.x (Java 25+)
+          - \`connection-verify-${VERSION}-mc1.21.jar\` - Minecraft 1.21.4 - 1.21.x (Java 21+)
+          - \`connection-verify-${VERSION}-mc26.jar\` - Minecraft 26.x (Java 25+)
 
-          Built from commit ${GITHUB_SHA}." \
+          Built from commit ${TARGET_SHA}." \
             --latest
 
       - name: Publish to Modrinth (optional)
@@ -149,8 +221,8 @@ jobs:
           modrinth-id: connection-verify
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           files: dist/connection-verify-*.jar
-          name: Connection Verify ${{ steps.meta.outputs.version }}
-          version: ${{ steps.meta.outputs.version }}
+          name: Connection Verify ${{ needs.version.outputs.version }}
+          version: ${{ needs.version.outputs.version }}
           version-type: release
           loaders: |
             paper
@@ -168,7 +240,7 @@ jobs:
             26.1.1
             26.1.2
             26.2
-          changelog: "See https://github.com/neramc/connection-verify/releases/tag/${{ steps.meta.outputs.tag }}"
+          changelog: "See https://github.com/neramc/connection-verify/releases/tag/${{ env.TAG }}"
 
       - name: Sync Modrinth description (optional)
         if: ${{ env.MODRINTH_TOKEN != '' && hashFiles('resources/modrinth.md') != '' }}
