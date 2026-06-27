@@ -1,0 +1,53 @@
+name: Publish Wiki
+
+# Mirrors the wiki/ folder to the repository's GitHub Wiki whenever it changes
+# on main. The wiki must be enabled and initialized once (create any page from
+# the repo's "Wiki" tab) before the first sync can push to it.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "wiki/**"
+      - ".github/workflows/wiki.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-wiki
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Sync wiki/
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Push wiki/ to the GitHub Wiki
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          wiki_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+          work="$(mktemp -d)"
+          if ! git clone --depth 1 "$wiki_url" "$work" 2>/dev/null; then
+            echo "::error::The wiki is not initialized. Open the repository's 'Wiki' tab, create the first page once (e.g. Home), then re-run this workflow."
+            exit 1
+          fi
+          # Mirror wiki/ into the wiki repo (delete pages removed from the source).
+          rsync -a --delete --exclude='.git' wiki/ "$work"/
+          cd "$work"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Wiki already up to date."
+          else
+            git commit -m "Sync wiki from ${GITHUB_SHA}"
+            git push
+            echo "Wiki updated."
+          fi
