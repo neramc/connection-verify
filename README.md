@@ -68,7 +68,9 @@ Each report is grouped into clearly labelled sections:
 | **Location / World** | coordinates, respawn & death points, difficulty, weather, entity/player counts |
 | **Result** *(failures)* | login stage, result and kick message |
 | **Server** | software, versions, MOTD, TPS, MSPT, tick state, loaded plugins |
-| **Runtime** | Java, OS, CPU, memory, uptime |
+| **Runtime** | Java, OS, CPU, memory, GC, threads, classes, uptime |
+| **System / hardware** | CPU load, physical & swap memory, committed virtual memory, process id/CPU time, network interfaces, data model |
+| **JVM details** | runtime/spec versions, VM flags, JIT compiler & compile time, memory managers & pools |
 
 Every field is captured defensively: anything a particular server build can't
 provide is recorded as `(unavailable: …)`, and empty values as `(unknown)`, so

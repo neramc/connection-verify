@@ -46,20 +46,26 @@ import org.bukkit.util.Vector;
 
 import java.io.File;
 import java.lang.management.ClassLoadingMXBean;
+import java.lang.management.CompilationMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryManagerMXBean;
+import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
 import java.lang.management.ThreadMXBean;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
+import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -464,6 +470,10 @@ public final class ConnectionSnapshot {
         if (settings.runtime()) {
             captureRuntime(record);
         }
+        if (settings.system()) {
+            captureSystem(record);
+            captureJvm(record);
+        }
     }
 
     private static void captureServer(ConnectionRecord record, JavaPlugin plugin) {
@@ -571,9 +581,109 @@ public final class ConnectionSnapshot {
         });
     }
 
+    private static void captureSystem(ConnectionRecord record) {
+        Section section = record.section("System / hardware");
+        OperatingSystemMXBean base = ManagementFactory.getOperatingSystemMXBean();
+        com.sun.management.OperatingSystemMXBean ext = extendedOsBean();
+
+        section.add("OS name", base::getName);
+        section.add("OS version", base::getVersion);
+        section.add("OS architecture", base::getArch);
+        section.add("Available processors", base::getAvailableProcessors);
+        section.add("System load average", () -> {
+            double load = base.getSystemLoadAverage();
+            return load < 0 ? "(unavailable)" : String.format(Locale.ROOT, "%.2f", load);
+        });
+        section.add("Data model", () -> System.getProperty("sun.arch.data.model") + "-bit");
+        section.add("Byte order", () -> ByteOrder.nativeOrder().toString());
+
+        if (ext != null) {
+            section.add("CPU load (system)", () -> percent(ext.getCpuLoad()));
+            section.add("CPU load (process)", () -> percent(ext.getProcessCpuLoad()));
+            section.add("Process CPU time", () -> {
+                long nanos = ext.getProcessCpuTime();
+                return nanos < 0 ? "(unavailable)" : (nanos / 1_000_000L) + " ms";
+            });
+            section.add("Physical memory total", () -> bytes(ext.getTotalMemorySize()));
+            section.add("Physical memory free", () -> bytes(ext.getFreeMemorySize()));
+            section.add("Physical memory used", () -> bytes(ext.getTotalMemorySize() - ext.getFreeMemorySize()));
+            section.add("Committed virtual memory", () -> bytes(ext.getCommittedVirtualMemorySize()));
+            section.add("Swap total", () -> bytes(ext.getTotalSwapSpaceSize()));
+            section.add("Swap free", () -> bytes(ext.getFreeSwapSpaceSize()));
+        }
+
+        ProcessHandle current = ProcessHandle.current();
+        section.add("Process id", current::pid);
+        section.add("Process started",
+                () -> current.info().startInstant().map(ConnectionRecord::formatTimestamp).orElse(null));
+        section.add("Process CPU duration",
+                () -> current.info().totalCpuDuration().map(d -> d.toMillis() + " ms").orElse(null));
+        section.add("Java home", () -> System.getProperty("java.home"));
+        section.add("Temp directory", () -> System.getProperty("java.io.tmpdir"));
+        section.add("Network interfaces", ConnectionSnapshot::networkInterfaces);
+    }
+
+    private static void captureJvm(ConnectionRecord record) {
+        Section section = record.section("JVM details");
+        RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
+        section.add("Runtime version", () -> Runtime.version().toString());
+        section.add("Java class version", () -> System.getProperty("java.class.version"));
+        section.add("VM info", () -> System.getProperty("java.vm.info"));
+        section.add("Vendor version", () -> System.getProperty("java.vendor.version"));
+        section.add("Spec name", runtimeBean::getSpecName);
+        section.add("Spec vendor", runtimeBean::getSpecVendor);
+        section.add("Spec version", runtimeBean::getSpecVersion);
+        section.add("Management spec version", runtimeBean::getManagementSpecVersion);
+        section.add("VM flags", () -> {
+            List<String> args = runtimeBean.getInputArguments();
+            return args.isEmpty() ? "none" : args.size() + " -> " + String.join(" ", args);
+        });
+
+        CompilationMXBean compilation = ManagementFactory.getCompilationMXBean();
+        section.add("JIT compiler", () -> compilation == null ? null : compilation.getName());
+        section.add("Total compile time", () -> compilation != null && compilation.isCompilationTimeMonitoringSupported()
+                ? compilation.getTotalCompilationTime() + " ms" : "n/a");
+
+        section.add("Memory managers", () -> ManagementFactory.getMemoryManagerMXBeans().stream()
+                .map(MemoryManagerMXBean::getName).collect(Collectors.joining(", ")));
+        for (MemoryPoolMXBean pool : ManagementFactory.getMemoryPoolMXBeans()) {
+            section.add("Pool: " + pool.getName(), () -> usage(pool.getUsage()));
+        }
+    }
+
     // ------------------------------------------------------------------
     //  Helpers
     // ------------------------------------------------------------------
+
+    private static com.sun.management.OperatingSystemMXBean extendedOsBean() {
+        try {
+            if (ManagementFactory.getOperatingSystemMXBean() instanceof com.sun.management.OperatingSystemMXBean ext) {
+                return ext;
+            }
+        } catch (Throwable ignored) {
+            // Non-HotSpot JVM - extended metrics simply won't be captured.
+        }
+        return null;
+    }
+
+    private static String percent(double fraction) {
+        return fraction < 0 ? "(unavailable)" : String.format(Locale.ROOT, "%.1f%%", fraction * 100.0D);
+    }
+
+    private static String networkInterfaces() throws Exception {
+        List<String> out = new ArrayList<>();
+        for (NetworkInterface ni : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+            String detail;
+            try {
+                detail = "up=" + ni.isUp() + ", mtu=" + ni.getMTU()
+                        + ", loopback=" + ni.isLoopback() + ", virtual=" + ni.isVirtual();
+            } catch (Throwable throwable) {
+                detail = "?";
+            }
+            out.add(ni.getName() + "(" + detail + ")");
+        }
+        return out.size() + " -> " + String.join(", ", out);
+    }
 
     private record Textures(Integer propertyCount, String model, String skinUrl, String capeUrl, Boolean signed) {
     }

@@ -105,6 +105,7 @@ public final class PluginConfig {
                 config.getBoolean("capture.world", true),
                 config.getBoolean("capture.server", true),
                 config.getBoolean("capture.runtime", true),
+                config.getBoolean("capture.system", true),
                 config.getBoolean("privacy.mask-ip", false),
                 clamp(config.getInt("privacy.mask-ip-segments", 2), 1, 4),
                 config.getBoolean("privacy.hide-uuid", false));
