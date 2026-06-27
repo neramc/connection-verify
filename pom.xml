@@ -6,26 +6,61 @@
 
     <groupId>com.neramc</groupId>
     <artifactId>connection-verify</artifactId>
-    <version>1.21.10</version>
+    <version>2.0.0</version>
     <packaging>jar</packaging>
 
     <name>Connection Verify</name>
-    <description>Verify and record the connection information of players joining (or failing to join) a Paper server.</description>
+    <description>Verify, announce and archive the connection information of every player who joins (or fails to join) a Paper server.</description>
     <url>https://github.com/neramc/connection-verify</url>
+    <inceptionYear>2026</inceptionYear>
+
+    <organization>
+        <name>neramc</name>
+        <url>https://github.com/neramc</url>
+    </organization>
 
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>
             <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
         </license>
     </licenses>
 
+    <developers>
+        <developer>
+            <id>neramc</id>
+            <name>neramc</name>
+            <url>https://github.com/neramc</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/neramc/connection-verify.git</connection>
+        <developerConnection>scm:git:git@github.com:neramc/connection-verify.git</developerConnection>
+        <url>https://github.com/neramc/connection-verify</url>
+    </scm>
+
+    <issueManagement>
+        <system>GitHub</system>
+        <url>https://github.com/neramc/connection-verify/issues</url>
+    </issueManagement>
+
     <properties>
-        <java.version>21</java.version>
-        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- The Minecraft / Paper version this plugin is built against. -->
-        <paper.version>1.21.10-R0.1-SNAPSHOT</paper.version>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <!--
+          Build target. These defaults target the newest supported line (26.x).
+          The 1.21.x branch / CI overrides them, e.g.:
+            -Dpaper.version=1.21.4-R0.1-SNAPSHOT -Dmaven.compiler.release=21 \
+            -Dapi.version=1.21 -Dtarget.id=mc1.21 -Dmc.range="1.21.4 - 1.21.x"
+        -->
+        <paper.version>26.2.build.34-alpha</paper.version>
+        <maven.compiler.release>25</maven.compiler.release>
+        <api.version>26.2</api.version>
+        <target.id>mc26</target.id>
+        <mc.range>1.21.4 - 26.x</mc.range>
     </properties>
 
     <repositories>
@@ -45,15 +80,26 @@
     </dependencies>
 
     <build>
-        <!-- Produces connection-verify-1.21.10.jar -->
-        <finalName>${project.artifactId}-${project.version}</finalName>
-        <defaultGoal>clean package</defaultGoal>
+        <!-- e.g. connection-verify-2.0.0-mc26.jar / connection-verify-2.0.0-mc1.21.jar -->
+        <finalName>${project.artifactId}-${project.version}-${target.id}</finalName>
+        <defaultGoal>clean verify</defaultGoal>
 
         <resources>
-            <!-- Filter resources so ${project.version} is injected into plugin.yml. -->
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
+                <includes>
+                    <include>plugin.yml</include>
+                    <include>build-info.properties</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>plugin.yml</exclude>
+                    <exclude>build-info.properties</exclude>
+                </excludes>
             </resource>
         </resources>
 
@@ -62,6 +108,29 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
+                <configuration>
+                    <failOnWarning>false</failOnWarning>
+                    <compilerArgs>
+                        <arg>-Xlint:all,-processing,-serial</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+
+            <!-- Keep plugin.yml honest: fail the build if it is malformed. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.1</version>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <Implementation-Title>${project.name}</Implementation-Title>
+                            <Implementation-Version>${project.version}</Implementation-Version>
+                            <Build-Target>${target.id}</Build-Target>
+                            <Built-Against-Paper>${paper.version}</Built-Against-Paper>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
             </plugin>
         </plugins>
     </build>

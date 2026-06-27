@@ -1,0 +1,42 @@
+# ============================================================================
+#  Connection Verify  -  English (en)
+#
+#  Messages use the MiniMessage format:
+#    https://docs.advntr.dev/minimessage/format.html
+#  Text inside <angle brackets> that matches a placeholder name (e.g. <number>)
+#  is replaced by the plugin. Use [square brackets] for literal hints.
+# ============================================================================
+
+# Internal version of this language file.
+language-version: 1
+
+# Prefix prepended to command / update messages (not to the join lines).
+prefix: "<gray>[</gray><aqua>ConnectionVerify</aqua><gray>]</gray> "
+
+# Console announcements (these intentionally have no prefix).
+console:
+  join: "<green>Join <white><name></white></green>"
+  connection-number: "<aqua>Connection number </aqua><yellow><bold><number></bold></yellow>"
+  failed: "<red>Connection failed: </red><white><name></white> <gray>(<reason>)</gray>"
+
+command:
+  no-permission: "<red>You do not have permission to use this command.</red>"
+  players-only: "<red>This command can only be used by a player.</red>"
+  unknown-subcommand: "<red>Unknown subcommand. Usage: /connectionverify [reload | info | version]</red>"
+  cnt:
+    usage: "<yellow>Usage: /cnt [number] </yellow><gray>- saves the log for a <length>-digit connection number.</gray>"
+    invalid-number: "<red>The connection number must be exactly <length> digit(s).</red>"
+    not-found: "<red>No connection found for number <number>. It may never have been issued, or it has expired.</red>"
+    already-exists: "<red>A log for <number> already exists. Enable file.overwrite-existing to replace it.</red>"
+    saved: "<green>Saved connection log </green><yellow><number></yellow> <gray>[<status>, <bytes> bytes] -> </gray><aqua><path></aqua>"
+    write-error: "<red>Could not write the connection log: <error></red>"
+  admin:
+    usage: "<yellow>Connection Verify </yellow><gray>- /connectionverify [reload | info | version]</gray>"
+    reloaded: "<green>Configuration and language files reloaded.</green>"
+    version: "<gray>Connection Verify </gray><white><version></white> <gray>(target <target>, API <api>)</gray>"
+    info: "<gray>Records in memory: </gray><white><records></white> <gray>| Language: </gray><white><language></white> <gray>| Log folder: </gray><white><folder></white>"
+
+update:
+  available: "<yellow>A new version of Connection Verify is available: </yellow><white><latest></white> <gray>(you have <current>)</gray><yellow>. Get it at </yellow><aqua><url></aqua>"
+  up-to-date: "<green>Connection Verify is up to date (<current>).</green>"
+  failed: "<gray>Connection Verify update check failed: <error></gray>"

@@ -1,0 +1,14 @@
+Connection Verify
+Copyright 2026 neramc
+
+This product is developed and maintained by neramc
+(https://github.com/neramc/connection-verify).
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+This product relies on, but does not bundle, the Paper API
+(https://papermc.io), which is provided by the Minecraft server at runtime.

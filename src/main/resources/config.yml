@@ -1,16 +1,110 @@
 # ============================================================================
-#  Connection Verify - configuration
+#  Connection Verify  -  configuration
+#  https://github.com/neramc/connection-verify
+#
+#  Every option is documented below. After editing, run "/connectionverify
+#  reload" (or restart the server) to apply your changes.
 # ============================================================================
 
-# Print a "Connection number" line under the join message in the console
-# every time a player successfully connects.
-log-successful-connections: true
+# Internal version of this file. Do not edit - it lets the plugin detect and
+# migrate outdated configurations in the future.
+config-version: 1
 
-# Print a "Connection number" line in the console every time a connection
-# attempt is denied (ban, whitelist, server full, kicked during login, ...).
-log-failed-connections: true
+# Language used for all console and command messages.
+# A matching file must exist at: lang/<language>.yml
+# Bundled languages: en, ko. Add your own by dropping a new file in lang/.
+language: en
 
-# Name of the sub-folder (inside this plugin's data folder) where connection
-# logs are written when you run "cnt <number>".
-# The default produces: plugins/connection-verify/connection/<number>.txt
-log-folder: connection
+# Print extra diagnostic information to the console. Useful when reporting bugs.
+debug: false
+
+# ----------------------------------------------------------------------------
+#  Connection number
+# ----------------------------------------------------------------------------
+connection-number:
+  # How many digits each connection number has (between 1 and 9). Default: 4.
+  length: 4
+  # Pad numbers with leading zeros so they always have the length above
+  # (e.g. 0421). When false, numbers are 1000-9999 style with no padding.
+  allow-leading-zeros: true
+
+# ----------------------------------------------------------------------------
+#  What to record
+# ----------------------------------------------------------------------------
+logging:
+  # Record (and number) successful joins.
+  successful-connections: true
+  # Record (and number) failed / dropped connection attempts.
+  failed-connections: true
+
+# ----------------------------------------------------------------------------
+#  Console output
+# ----------------------------------------------------------------------------
+console:
+  # Announce successful joins on the console with their connection number.
+  announce-successful: true
+  # Announce failed connections on the console with their connection number.
+  announce-failed: true
+  # Use colored output. Disable for plain text in log-scraping setups.
+  use-colors: true
+
+# ----------------------------------------------------------------------------
+#  Saved log files
+# ----------------------------------------------------------------------------
+file:
+  # Sub-folder (inside this plugin's data folder) where logs are written.
+  # Default produces: plugins/connection-verify/connection/<number>.<ext>
+  folder: connection
+  # Output format: "text" (human-readable report) or "json" (machine-readable).
+  format: text
+  # Overwrite an existing file for the same number. When false, /cnt refuses
+  # to overwrite and tells you the file already exists.
+  overwrite-existing: true
+  # Write files off the main server thread so saving never causes lag.
+  async-write: true
+
+# ----------------------------------------------------------------------------
+#  Which sections of detail to capture
+# ----------------------------------------------------------------------------
+capture:
+  identity: true        # name, display name, UUID, entity id
+  network: true         # IP, port, virtual host, brand, protocol, ping, ...
+  client-options: true  # locale, main hand, chat/particle visibility, ...
+  session: true         # first join, first played, last login, op, ban, ...
+  player-state: true    # health, hunger, xp, movement, potions, ...
+  location: true        # coordinates, respawn & death locations
+  world: true           # world name, difficulty, weather, counts, ...
+  server: true          # versions, MOTD, TPS, MSPT, plugins, ...
+  runtime: true         # Java, OS, CPU, memory, uptime
+
+# ----------------------------------------------------------------------------
+#  Privacy (helpful for GDPR-conscious networks)
+# ----------------------------------------------------------------------------
+privacy:
+  # Mask player IP addresses in console output and saved logs.
+  mask-ip: false
+  # When masking, how many trailing segments to hide (1-4 for IPv4).
+  # Example with 2: 203.0.x.x
+  mask-ip-segments: 2
+  # Replace player UUIDs with a redaction marker in output and logs.
+  hide-uuid: false
+
+# ----------------------------------------------------------------------------
+#  In-memory record retention
+#  Connection numbers are kept in memory so you can save them with /cnt.
+# ----------------------------------------------------------------------------
+records:
+  # Maximum number of records kept in memory. The oldest are evicted first.
+  # Set to 0 for unlimited (not recommended on busy servers).
+  max-in-memory: 1000
+  # Automatically forget records older than this many minutes.
+  # Set to 0 to keep them for the whole server session.
+  expire-after-minutes: 0
+
+# ----------------------------------------------------------------------------
+#  Update checker (opt-in, privacy-friendly)
+#  When enabled, the plugin asks the Modrinth API once on startup whether a
+#  newer version exists and logs the result. No data about your server is sent.
+# ----------------------------------------------------------------------------
+update-checker:
+  enabled: false

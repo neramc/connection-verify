@@ -1,10 +1,23 @@
+/*
+ * Copyright 2026 neramc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.neramc.connectionverify.command;
 
-import com.neramc.connectionverify.ConnectionRecord;
-import com.neramc.connectionverify.ConnectionRegistry;
 import com.neramc.connectionverify.ConnectionVerifyPlugin;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import com.neramc.connectionverify.connection.ConnectionRecord;
+import com.neramc.connectionverify.i18n.Messages;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -12,92 +25,86 @@ import org.bukkit.command.TabCompleter;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.regex.Pattern;
 
 /**
- * Handles {@code cnt <number>}: writes the connection details and metadata held
- * for {@code <number>} to {@code <log-folder>/<number>.txt}.
+ * Handles {@code /cnt <number>}: writes the stored connection details for a
+ * connection number to a file, in the configured format, off the main thread
+ * when enabled.
  */
 public final class CntCommand implements CommandExecutor, TabCompleter {
 
-    private static final Pattern FOUR_DIGITS = Pattern.compile("\\d{4}");
+    public static final String PERMISSION = "connectionverify.command.save";
 
     private final ConnectionVerifyPlugin plugin;
-    private final ConnectionRegistry registry;
 
-    public CntCommand(ConnectionVerifyPlugin plugin, ConnectionRegistry registry) {
+    public CntCommand(ConnectionVerifyPlugin plugin) {
         this.plugin = plugin;
-        this.registry = registry;
     }
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
                              @NotNull String label, @NotNull String[] args) {
+        Messages messages = plugin.messages();
+        int length = plugin.config().numberLength();
+
         if (args.length != 1) {
-            sender.sendMessage(Component.text("Usage: /cnt <4-digit connection number>", NamedTextColor.YELLOW));
+            messages.send(sender, "command.cnt.usage", Messages.placeholder("length", length));
             return true;
         }
 
         String number = args[0];
-        if (!FOUR_DIGITS.matcher(number).matches()) {
-            sender.sendMessage(Component.text(
-                    "The connection number must be exactly 4 digits (0000-9999).", NamedTextColor.RED));
+        if (!number.matches("\\d{" + length + "}")) {
+            messages.send(sender, "command.cnt.invalid-number", Messages.placeholder("length", length));
             return true;
         }
 
-        ConnectionRecord record = registry.get(number);
+        ConnectionRecord record = plugin.registry().get(number);
         if (record == null) {
-            sender.sendMessage(Component.text(
-                    "No connection found for number " + number
-                            + ". It may never have been issued, or it was recorded before the last restart.",
-                    NamedTextColor.RED));
+            messages.send(sender, "command.cnt.not-found", Messages.placeholder("number", number));
             return true;
         }
 
-        File directory = plugin.logDirectory();
-        File file = new File(directory, number + ".txt");
-        byte[] content = record.render(Instant.now()).getBytes(StandardCharsets.UTF_8);
-        try {
-            if (directory != null && !directory.exists()) {
-                directory.mkdirs();
+        File file = new File(plugin.logDirectory(), number + "." + plugin.formatter().extension());
+        if (file.exists() && !plugin.config().overwriteExisting()) {
+            messages.send(sender, "command.cnt.already-exists", Messages.placeholder("number", number));
+            return true;
+        }
+
+        byte[] content = plugin.formatter().format(record, Instant.now()).getBytes(StandardCharsets.UTF_8);
+        plugin.logWriter().write(file, content, plugin.config().asyncWrite(), result -> {
+            if (result.success()) {
+                plugin.messages().send(sender, "command.cnt.saved",
+                        Messages.placeholder("number", number),
+                        Messages.placeholder("status", record.status().name()),
+                        Messages.placeholder("bytes", result.bytes()),
+                        Messages.placeholder("path", file.getAbsolutePath()));
+                plugin.getLogger().info("Saved connection log " + number
+                        + " [" + record.status() + "] -> " + file.getAbsolutePath());
+            } else {
+                String reason = result.error() == null ? "unknown" : result.error().getMessage();
+                plugin.messages().send(sender, "command.cnt.write-error", Messages.placeholder("error", reason));
+                plugin.getLogger().warning("Failed to write connection log " + number + ": " + reason);
             }
-            Files.write(file.toPath(), content);
-        } catch (IOException exception) {
-            sender.sendMessage(Component.text(
-                    "Failed to write the connection log: " + exception.getMessage(), NamedTextColor.RED));
-            plugin.getLogger().log(Level.SEVERE, "Failed to write connection log for " + number, exception);
-            return true;
-        }
-
-        sender.sendMessage(Component.text("Connection log ", NamedTextColor.GREEN)
-                .append(Component.text(number, NamedTextColor.YELLOW))
-                .append(Component.text(" [" + record.status() + ", " + content.length + " bytes] saved to ",
-                        NamedTextColor.GREEN))
-                .append(Component.text(file.getAbsolutePath(), NamedTextColor.AQUA)));
-        plugin.getLogger().info("Saved connection log " + number
-                + " [" + record.status() + "] -> " + file.getAbsolutePath());
+        });
         return true;
     }
 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
                                       @NotNull String alias, @NotNull String[] args) {
-        if (args.length != 1) {
+        if (args.length != 1 || !sender.hasPermission(PERMISSION)) {
             return Collections.emptyList();
         }
         String prefix = args[0];
         List<String> suggestions = new ArrayList<>();
-        for (String knownNumber : registry.numbers()) {
-            if (knownNumber.startsWith(prefix)) {
-                suggestions.add(knownNumber);
+        for (String known : plugin.registry().numbers()) {
+            if (known.startsWith(prefix)) {
+                suggestions.add(known);
             }
         }
         return suggestions;

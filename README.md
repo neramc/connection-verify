@@ -1,151 +1,207 @@
 # Connection Verify
 
 [![Build](https://github.com/neramc/connection-verify/actions/workflows/build.yml/badge.svg)](https://github.com/neramc/connection-verify/actions/workflows/build.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE.md)
+[![Minecraft](https://img.shields.io/badge/Minecraft-1.21.4%20--%2026.x-brightgreen.svg)](#compatibility)
 
-A state-of-the-art **Paper** plugin that lets server operators verify the
-connection information of every player who joins — or fails to join — the
-server.
+**Connection Verify** is a lightweight Paper plugin that gives every connection
+to your server a short, memorable **connection number** and lets you save a
+complete, human‑readable report of that connection to a file whenever you need
+it.
 
-- **Target Minecraft / Paper version:** `1.21.10`
-- **Plugin version:** `1.21.10`
-- **Default language:** English
+It works for players who join successfully **and** for players who fail to
+connect (bans, whitelist, server full, kicked during login, dropped/lost
+connections). It is designed for server operators and admins who want a quick,
+reliable way to look up *exactly* who connected, from where, and with what
+client — without digging through noisy logs.
 
-## What it does
+> No database. No web server. No data leaves your machine. Just a number on the
+> console and a text (or JSON) file when you ask for one.
 
-* When a player **successfully connects**, the console prints the join line with
-  a random 4-digit **connection number** right underneath it (console only):
+---
 
-  ```
-  Join Steve
-  Connection number 4821
-  ```
+## How it works
 
-* When a connection **fails**, a connection number is printed as well:
+**1. Someone connects.** Connection Verify prints two lines to the **console**:
 
-  ```
-  Connection failed: Steve (KICK_BANNED)
-  Connection number 7392
-  ```
+```
+Join Steve
+Connection number 4821
+```
 
-  Failures are caught at every stage the Paper API exposes:
+If a connection **fails or is dropped**, you get a number for that too:
 
-  | Stage | Event | Examples |
-  |-------|-------|----------|
-  | Pre-login | `AsyncPlayerPreLoginEvent` | ban, whitelist, server full |
-  | Login | `PlayerLoginEvent` | plugin denials |
-  | Validation | `PlayerConnectionValidateLoginEvent` | login/configuration validation |
-  | Connection dropped | `PlayerConnectionCloseEvent` | `lost connection: ...`, network errors, timeouts, generic "Connection failed" disconnects after authentication but before joining |
+```
+Connection failed: Steve (KICK_BANNED)
+Connection number 7392
+```
 
-  Each failed attempt yields **exactly one** connection number: a connection is
-  rejected at a single stage, the connection-close catch-all skips players who
-  actually joined (normal quits), and it de-duplicates against any failure
-  already reported by the stages above.
+**2. You want the details.** Type the number in the console (or in‑game as an
+operator):
 
-  > Note: rejections that happen during the *raw protocol handshake, before
-  > authentication* — most notably an incompatible client/server version — are
-  > closed by the server before any plugin-observable event fires, so they
-  > cannot be assigned a number.
+```
+cnt 4821
+```
 
-* Typing `cnt <number>` in the console writes the full connection details and
-  metadata for that number to a text file:
+**3. Connection Verify writes a full report** to:
 
-  ```
-  cnt 4821
-  ```
+```
+plugins/connection-verify/connection/4821.txt
+```
 
-  creates
+That file contains *everything* the server can tell you about the connection.
 
-  ```
-  plugins/connection-verify/connection/4821.txt
-  ```
+---
 
-Each log file is exhaustive — it records **everything** observable about the
-connection, grouped into sections:
+## What's in a report
 
-* **Capture** — event type, capturing thread, primary-thread flag.
-* **Identity** — name, display name, UUID, entity id.
-* **Profile** (failures) — Mojang profile name/id, completeness, textures.
-* **Network** — socket address, IP, port, virtual host, raw/real IP, hostname,
-  client brand, protocol version, ping, transfer flag, client/effective/
-  simulation view distances.
-* **Client options** — locale, main hand, chat & particle visibility, chat
-  colors, server-listing & text-filtering flags, skin parts.
-* **Session** — first join, first played, last login/seen, op, whitelist, ban,
-  game mode.
-* **Player state** — health/max health, hunger, saturation, exhaustion, xp,
-  movement speeds, flight, sneaking/sprinting, pose, air, fire, fall distance,
-  velocity, current input, spawn reason, scoreboard tags, potion effects.
-* **Location / World** — coordinates, respawn & last-death locations, world
-  difficulty, time, weather, pvp, entity/player counts, spawn.
-* **Result** (failures) — login stage, result, kick message.
-* **Server** — software, versions, MOTD, bind address, online mode, whitelist,
-  hardcore, game mode, distances, throttle, TPS, MSPT, tick manager, plugins.
-* **Runtime / Environment** — Java/JVM, OS, CPU, memory, uptime, working dir.
+Each report is grouped into clearly labelled sections:
 
-Every field is captured defensively: a getter that is unavailable on a given
-server build is recorded as `(unavailable: …)` and missing values as
-`(unknown)`, so a log is never aborted by a single field.
+| Section | Examples of what it captures |
+|---------|------------------------------|
+| **Capture** | which event fired, thread, timestamp |
+| **Identity** | name, display name, UUID, entity id |
+| **Network** | IP, port, virtual host, client brand, protocol, ping, view/sim distance, transfer flag |
+| **Client options** | locale, main hand, chat & particle visibility, skin parts, server‑listing/text‑filtering flags |
+| **Session** | first join, first played, last login/seen, op, whitelist, ban, game mode |
+| **Player state** | health, hunger, XP, movement, pose, air, fire, velocity, potion effects, scoreboard tags |
+| **Location / World** | coordinates, respawn & death points, difficulty, weather, entity/player counts |
+| **Result** *(failures)* | login stage, result and kick message |
+| **Server** | software, versions, MOTD, TPS, MSPT, tick state, loaded plugins |
+| **Runtime** | Java, OS, CPU, memory, uptime |
 
-## Commands & permissions
+Every field is captured defensively: anything a particular server build can't
+provide is recorded as `(unavailable: …)`, and empty values as `(unknown)`, so
+a report is never broken by a single missing value.
 
-| Command         | Description                                              | Permission             | Default |
-|-----------------|----------------------------------------------------------|------------------------|---------|
-| `cnt <number>`  | Save the connection log for a 4-digit number to a file.  | `connectionverify.cnt` | op      |
+Prefer machine‑readable logs? Set `file.format: json` and reports are written as
+clean, pretty‑printed JSON instead.
 
-The command is intended for the **console** (which always has permission) but
-also works in-game for operators. Tab-completion suggests every connection
-number recorded during the current server session.
+---
+
+## Which connections get a number?
+
+A connection is rejected (or lost) at exactly **one** stage, so each attempt
+gets **exactly one** number — no duplicates, and normal player quits are never
+counted as failures.
+
+| Stage | Covered cases |
+|-------|---------------|
+| Pre‑login | ban, whitelist, server full |
+| Login | plugin disallows the login |
+| Connection dropped | network errors, timeouts, generic *“lost connection”* disconnects after authentication but before joining |
+
+> **Note:** rejections during the *raw protocol handshake before authentication*
+> — most notably an incompatible client/server version — are closed by the
+> server before any plugin can observe them, so they cannot be assigned a
+> number. This is a platform limitation, not a plugin bug.
+
+---
+
+## Commands
+
+| Command | Description | Permission |
+|---------|-------------|------------|
+| `/cnt <number>` | Save the stored report for a connection number to a file. | `connectionverify.command.save` |
+| `/connectionverify reload` | Reload `config.yml` and the language files. | `connectionverify.command.admin` |
+| `/connectionverify info` | Show records in memory, language and log folder. | `connectionverify.command.admin` |
+| `/connectionverify version` | Show version and build target. | `connectionverify.command.admin` |
+
+Aliases for the admin command: `/cverify`, `/converify`.
+
+## Permissions
+
+| Node | Default | Description |
+|------|---------|-------------|
+| `connectionverify.command.save` | op | Use `/cnt`. |
+| `connectionverify.command.admin` | op | Use `/connectionverify`. |
+| `connectionverify.*` | op | All of the above. |
+
+The `/cnt` command is intended for the **console** (which always has
+permission) but also works for operators in‑game. Tab‑completion suggests every
+connection number issued during the current server session.
+
+---
 
 ## Configuration
 
-`plugins/connection-verify/config.yml`:
+The default `config.yml` is fully commented. Highlights:
 
-```yaml
-# Print a "Connection number" line under the join message for successful joins.
-log-successful-connections: true
+- **`language`** – `en` and `ko` are bundled; drop a new file in `lang/` to add
+  your own. Every console and command message is translatable.
+- **`connection-number.length` / `allow-leading-zeros`** – control the look of
+  the numbers (e.g. 4‑digit `0421` vs `1000`‑`9999`).
+- **`logging.*` / `console.*`** – choose whether successful and/or failed
+  connections are recorded and announced, and whether output is colored.
+- **`file.format`** – `text` or `json`. Plus `folder`, `overwrite-existing`,
+  and `async-write` (writes happen off the main thread, so saving never lags
+  your server).
+- **`capture.*`** – switch any of the nine detail sections on or off.
+- **`privacy.*`** – `mask-ip` (e.g. `203.0.x.x`), `mask-ip-segments`, and
+  `hide-uuid` for GDPR‑conscious networks.
+- **`records.max-in-memory` / `expire-after-minutes`** – bound how many numbers
+  are kept in memory and for how long.
+- **`update-checker.enabled`** – optional, **off by default**; when on, the
+  plugin asks Modrinth once at startup whether a newer version exists. No
+  information about your server is sent.
 
-# Print a "Connection number" line for denied connection attempts.
-log-failed-connections: true
+Edit the file and run `/connectionverify reload` — no restart required.
 
-# Sub-folder (inside this plugin's data folder) where logs are written.
-log-folder: connection
-```
+---
 
-## How connection numbers work
+## Installation
 
-Connection numbers are generated per connection attempt and kept **in memory**
-for the lifetime of the server session. Run `cnt <number>` while the server is
-still running to persist that connection's details to disk. Numbers are not
-retained across restarts.
+1. Download the jar that matches your server version (see [Compatibility](#compatibility)).
+2. Drop it into your server's `plugins/` folder.
+3. Start the server. A default `config.yml` and `lang/` folder are created.
 
-## Download
+Connection numbers are kept in memory for the current server session; run
+`/cnt <number>` while the server is still running to save a report to disk.
 
-Pre-built jars are published automatically to
-[**Releases**](https://github.com/neramc/connection-verify/releases). Grab
-`connection-verify-<version>.jar`, drop it into your server's `plugins/` folder
-and restart.
+---
 
-## Building
+## Compatibility
 
-Requires JDK 21 and Maven.
+Connection Verify is published as two builds from a single codebase:
+
+| Build | Minecraft / Paper | Java |
+|-------|-------------------|------|
+| `connection-verify-<version>-mc1.21.jar` | 1.21.4 – 1.21.x | 21+ |
+| `connection-verify-<version>-mc26.jar` | 26.x | 25+ |
+
+Pick the jar for your server's version. Both are built and released
+automatically.
+
+---
+
+## Building from source
+
+Requires Git and Maven. JDK 21 builds the 1.21 line; JDK 25 builds the 26 line.
 
 ```bash
+# 26.x build (default, needs JDK 25)
 mvn clean package
+
+# 1.21.x build (needs JDK 21+)
+mvn clean package -Dpaper.version=1.21.4-R0.1-SNAPSHOT \
+                  -Dmaven.compiler.release=21 \
+                  -Dapi.version=1.21 -Dtarget.id=mc1.21 \
+                  -Dmc.range="1.21.4 - 1.21.x"
 ```
 
-The plugin jar is produced at `target/connection-verify-1.21.10.jar`.
+Jars are produced in `target/`.
 
-## Continuous integration & releases
+### Branches
 
-Every push to `main` and every pull request is built with JDK 21 by the
-[`Build`](.github/workflows/build.yml) GitHub Actions workflow, which uploads
-the compiled jar as a workflow artifact.
+| Branch | Purpose |
+|--------|---------|
+| `main` | Latest code (tracks the newest supported line). |
+| `26.x` | The Minecraft 26.x line. |
+| `1.21.x` | The Minecraft 1.21.x line. |
 
-When a build of `main` succeeds, the jar is published to GitHub Releases under
-the tag `v<plugin-version>` (e.g. `v1.21.10`). The release for the current
-version is refreshed on each successful `main` build, so bumping the
-`<version>` in `pom.xml` is what creates a brand-new release.
+---
 
 ## License
 
-Licensed under the Apache License 2.0 — see [LICENSE.md](LICENSE.md).
+Licensed under the **Apache License, Version 2.0**. Copyright 2026 neramc.
+See [LICENSE.md](LICENSE.md) and [NOTICE](NOTICE).

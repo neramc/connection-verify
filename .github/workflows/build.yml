@@ -2,7 +2,8 @@ name: Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, "26.x", "1.21.x" ]
+    tags: [ "v*" ]
   pull_request:
   workflow_dispatch:
 
@@ -14,58 +15,113 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build (JDK 21)
+  # --------------------------------------------------------------------------
+  #  1. Validate the bundled resources before spending time on a compile.
+  # --------------------------------------------------------------------------
+  validate:
+    name: Validate resources
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Validate YAML and plugin.yml keys
+        run: |
+          python3 - <<'PY'
+          import glob, sys, yaml
+          ok = True
+          for path in glob.glob("src/main/resources/**/*.yml", recursive=True):
+              try:
+                  with open(path, encoding="utf-8") as fh:
+                      yaml.safe_load(fh)
+                  print(f"  ok  {path}")
+              except Exception as exc:
+                  print(f"FAIL  {path}: {exc}")
+                  ok = False
+          with open("src/main/resources/plugin.yml", encoding="utf-8") as fh:
+              plugin = yaml.safe_load(fh)
+          for key in ("name", "version", "main", "api-version", "commands", "permissions"):
+              if key not in plugin:
+                  print(f"FAIL  plugin.yml missing key: {key}")
+                  ok = False
+          sys.exit(0 if ok else 1)
+          PY
+
+  # --------------------------------------------------------------------------
+  #  2. Build every supported target from the single codebase.
+  # --------------------------------------------------------------------------
+  build:
+    name: Build ${{ matrix.target.id }} (JDK ${{ matrix.target.java }})
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { id: mc1.21, java: 21, paper: "1.21.4-R0.1-SNAPSHOT", api: "1.21", range: "1.21.4 - 1.21.x" }
+          - { id: mc26,   java: 25, paper: "26.2.build.34-alpha",   api: "26.2", range: "1.21.4 - 26.x" }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.target.java }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: ${{ matrix.target.java }}
           cache: maven
 
-      - name: Build with Maven
-        run: mvn -B -ntp clean package
+      - name: Build & verify
+        run: >
+          mvn -B -ntp clean verify
+          -Dpaper.version=${{ matrix.target.paper }}
+          -Dmaven.compiler.release=${{ matrix.target.java }}
+          -Dapi.version=${{ matrix.target.api }}
+          -Dtarget.id=${{ matrix.target.id }}
+          -Dmc.range="${{ matrix.target.range }}"
 
-      - name: Upload plugin jar
+      - name: Upload jar
         uses: actions/upload-artifact@v4
         with:
-          name: connection-verify
+          name: connection-verify-${{ matrix.target.id }}
           path: target/connection-verify-*.jar
           if-no-files-found: error
 
+  # --------------------------------------------------------------------------
+  #  3. Publish a release (GitHub + optionally Modrinth) when main advances.
+  # --------------------------------------------------------------------------
   release:
     name: Publish release
     needs: build
-    # Only publish when a build of main succeeds (never for pull requests).
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download built jar
+      - name: Download built jars
         uses: actions/download-artifact@v4
         with:
-          name: connection-verify
           path: dist
+          merge-multiple: true
 
-      - name: Resolve version from jar
+      - name: Resolve version
         id: meta
         run: |
-          jar="$(ls dist/connection-verify-*.jar | head -n1)"
+          jar="$(ls dist/connection-verify-*-mc26.jar | head -n1)"
           file="$(basename "$jar")"
           version="${file#connection-verify-}"
-          version="${version%.jar}"
-          echo "jar=$jar"          >> "$GITHUB_OUTPUT"
-          echo "version=$version"  >> "$GITHUB_OUTPUT"
-          echo "tag=v$version"     >> "$GITHUB_OUTPUT"
+          version="${version%-mc26.jar}"
+          {
+            echo "version=$version"
+            echo "tag=v$version"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $version"
+          ls -la dist
 
       - name: Publish to GitHub Releases
         env:
@@ -73,12 +129,39 @@ jobs:
         run: |
           tag="${{ steps.meta.outputs.tag }}"
           version="${{ steps.meta.outputs.version }}"
-          jar="${{ steps.meta.outputs.jar }}"
-          # Replace any existing release/tag for this version so the published
-          # asset always matches the latest successful build of main.
           gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$tag" "$jar" \
+          gh release create "$tag" dist/connection-verify-*.jar \
             --target "${GITHUB_SHA}" \
             --title "Connection Verify ${version}" \
-            --notes "Automated release of Connection Verify \`${version}\` for Minecraft / Paper 1.21.10, built from commit ${GITHUB_SHA}." \
+            --notes "Automated release of Connection Verify \`${version}\`.
+
+          - \`connection-verify-${version}-mc1.21.jar\` - Minecraft 1.21.4 - 1.21.x (Java 21+)
+          - \`connection-verify-${version}-mc26.jar\` - Minecraft 26.x (Java 25+)
+
+          Built from commit ${GITHUB_SHA}." \
             --latest
+
+      - name: Publish to Modrinth (optional)
+        if: ${{ env.MODRINTH_TOKEN != '' }}
+        continue-on-error: true
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: connection-verify
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          files: dist/connection-verify-*.jar
+          name: Connection Verify ${{ steps.meta.outputs.version }}
+          version: ${{ steps.meta.outputs.version }}
+          version-type: release
+          loaders: |
+            paper
+            purpur
+          game-versions: |
+            1.21.4
+            1.21.5
+            1.21.6
+            1.21.7
+            1.21.8
+            1.21.9
+            1.21.10
+            1.21.11
+          changelog: "See https://github.com/neramc/connection-verify/releases/tag/${{ steps.meta.outputs.tag }}"

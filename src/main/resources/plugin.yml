@@ -1,24 +1,42 @@
 # Connection Verify
-# A Paper plugin that verifies and records the connection information of
-# players who join (or fail to join) the server.
+# https://github.com/neramc/connection-verify
+#
+# Verify, announce and archive the connection information of every player who
+# joins (or fails to join) the server. Built target: ${mc.range}
 name: connection-verify
 version: ${project.version}
 main: com.neramc.connectionverify.ConnectionVerifyPlugin
-api-version: '1.21'
-description: Verify and record the connection information of joining players.
+api-version: '${api.version}'
+description: Verify and archive the connection information of joining players.
 author: neramc
 website: https://github.com/neramc/connection-verify
-# This plugin only reacts to network/login events and writes plain text logs,
-# so it is safe to load before/after any other plugin.
 load: POSTWORLD
 
 commands:
   cnt:
-    description: Save the connection log for the given 4-digit connection number to a file.
-    usage: /cnt <connection-number>
-    permission: connectionverify.cnt
+    description: Save the stored connection log for a connection number to a file.
+    usage: /<command> <connection-number>
+    permission: connectionverify.command.save
+  connectionverify:
+    description: Connection Verify administration (reload / info).
+    usage: /<command> <reload|info|version>
+    aliases: [cverify, converify]
+    permission: connectionverify.command.admin
 
 permissions:
-  connectionverify.cnt:
-    description: Allows saving connection logs through the /cnt command.
+  connectionverify.command.save:
+    description: Allows saving a stored connection log with /cnt.
     default: op
+  connectionverify.command.admin:
+    description: Allows administering the plugin (reload, info).
+    default: op
+  connectionverify.notify:
+    description: Reserved for future in-game connection notifications.
+    default: op
+  connectionverify.*:
+    description: Grants every Connection Verify permission.
+    default: op
+    children:
+      connectionverify.command.save: true
+      connectionverify.command.admin: true
+      connectionverify.notify: true
