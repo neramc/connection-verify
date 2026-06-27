@@ -1,6 +1,7 @@
 package com.neramc.connectionverify;
 
 import com.destroystokyo.paper.ClientOption;
+import com.destroystokyo.paper.event.player.PlayerConnectionCloseEvent;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.neramc.connectionverify.ConnectionRecord.Section;
 import com.neramc.connectionverify.ConnectionRecord.Status;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -289,6 +291,43 @@ public final class ConnectionSnapshot {
         } catch (Throwable throwable) {
             return null;
         }
+    }
+
+    /** Best-effort UUID for a validate-login failure (may be {@code null}). */
+    public static UUID uuidOf(PlayerConnectionValidateLoginEvent event) {
+        try {
+            Object id = profileId(event.getConnection());
+            return id instanceof UUID uuid ? uuid : null;
+        } catch (Throwable throwable) {
+            return null;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    //  Connection dropped / lost after authentication, before joining
+    // ------------------------------------------------------------------
+
+    public static ConnectionRecord forConnectionClose(PlayerConnectionCloseEvent event,
+                                                      ConnectionVerifyPlugin plugin) {
+        ConnectionRecord record = new ConnectionRecord(Status.FAILED);
+
+        captureContext(record, plugin, "PlayerConnectionCloseEvent");
+
+        Section identity = record.section("Identity");
+        identity.add("Name", event.getPlayerName());
+        identity.add("UUID", () -> event.getPlayerUniqueId());
+
+        Section network = record.section("Network");
+        network.add("IP address", () -> host(event.getIpAddress()));
+
+        Section result = record.section("Result");
+        result.add("Stage", "PlayerConnectionClose");
+        result.add("Outcome", "Connection lost/dropped before the player joined the world");
+        result.add("Disconnect reason", "(not exposed by the Bukkit/Paper API at this stage)");
+
+        captureServer(record, plugin);
+        captureRuntime(record);
+        return record;
     }
 
     // ------------------------------------------------------------------

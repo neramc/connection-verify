@@ -1,5 +1,6 @@
 package com.neramc.connectionverify.listener;
 
+import com.destroystokyo.paper.event.player.PlayerConnectionCloseEvent;
 import com.neramc.connectionverify.ConnectionRecord;
 import com.neramc.connectionverify.ConnectionRegistry;
 import com.neramc.connectionverify.ConnectionSnapshot;
@@ -15,6 +16,11 @@ import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
 
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+
 /**
  * Listens for every connection attempt, hands it to {@link ConnectionSnapshot}
  * for capture, and prints its connection number on the console.
@@ -26,11 +32,20 @@ import org.bukkit.event.player.PlayerLoginEvent;
  *   <li>{@link PlayerLoginEvent} - failures during login (plugin denials,
  *       ...).</li>
  *   <li>{@link PlayerConnectionValidateLoginEvent} - login/validation-stage
- *       failures that happen before or instead of the events above.</li>
+ *       failures.</li>
+ *   <li>{@link PlayerConnectionCloseEvent} - a connection that is dropped /
+ *       lost after authentication but before the player joins the world
+ *       (network errors, timeouts, generic "lost connection" disconnects).</li>
  * </ul>
  *
  * <p>All handlers run at {@link EventPriority#MONITOR} so the final,
  * post-plugin result is what gets recorded.</p>
+ *
+ * <p>A connection that is denied at the pre-login/login/validation stages
+ * produces exactly one connection number there. {@link PlayerConnectionCloseEvent}
+ * is the catch-all for connections that drop without any explicit deny; it
+ * skips players who actually joined (normal quits) and de-duplicates against
+ * failures already reported by the richer handlers above.</p>
  */
 public final class ConnectionListener implements Listener {
 
@@ -38,6 +53,11 @@ public final class ConnectionListener implements Listener {
     private final ConnectionRegistry registry;
     private final boolean logSuccessful;
     private final boolean logFailed;
+
+    /** UUIDs of players who successfully joined the world (cleared on disconnect). */
+    private final Set<UUID> joinedConnections = ConcurrentHashMap.newKeySet();
+    /** UUIDs already reported as failed by a pre-login/login/validation handler. */
+    private final Set<UUID> reportedFailures = ConcurrentHashMap.newKeySet();
 
     public ConnectionListener(ConnectionVerifyPlugin plugin,
                               ConnectionRegistry registry,
@@ -51,6 +71,9 @@ public final class ConnectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
+        // Always track the join so the connection-close handler can tell a normal
+        // quit apart from a failed connection, regardless of logging settings.
+        joinedConnections.add(event.getPlayer().getUniqueId());
         if (!logSuccessful) {
             return;
         }
@@ -64,6 +87,8 @@ public final class ConnectionListener implements Listener {
         if (!logFailed || event.getLoginResult() == AsyncPlayerPreLoginEvent.Result.ALLOWED) {
             return;
         }
+        // A denied pre-login never produces a PlayerConnectionCloseEvent, so this
+        // is reported directly without participating in the de-duplication set.
         ConnectionRecord record = ConnectionSnapshot.forPreLogin(event, plugin);
         String number = registry.register(record);
         announceFailure(event.getName(), event.getLoginResult().name(), number);
@@ -74,25 +99,53 @@ public final class ConnectionListener implements Listener {
         if (!logFailed || event.getResult() == PlayerLoginEvent.Result.ALLOWED) {
             return;
         }
-        ConnectionRecord record = ConnectionSnapshot.forLogin(event, plugin);
-        String number = registry.register(record);
-        announceFailure(event.getPlayer().getName(), event.getResult().name(), number);
+        reportFailure(event.getPlayer().getUniqueId(),
+                () -> ConnectionSnapshot.forLogin(event, plugin),
+                event.getPlayer().getName(), event.getResult().name());
     }
 
-    /**
-     * Catches login/validation-stage failures that occur before (or instead of)
-     * {@link AsyncPlayerPreLoginEvent} / {@link PlayerLoginEvent}. Because a
-     * connection is rejected at exactly one stage, this never double-reports a
-     * failure already covered by the handlers above.
-     */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onValidateLogin(PlayerConnectionValidateLoginEvent event) {
         if (!logFailed || event.isAllowed()) {
             return;
         }
-        ConnectionRecord record = ConnectionSnapshot.forValidateLogin(event, plugin);
+        reportFailure(ConnectionSnapshot.uuidOf(event),
+                () -> ConnectionSnapshot.forValidateLogin(event, plugin),
+                ConnectionSnapshot.nameOf(event), "VALIDATION_FAILED");
+    }
+
+    /**
+     * Catch-all for connections that are dropped without an explicit deny - the
+     * generic "{@code /ip:port lost connection: ...}" case the server logs.
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onConnectionClose(PlayerConnectionCloseEvent event) {
+        UUID uuid = event.getPlayerUniqueId();
+        boolean hadJoined = joinedConnections.remove(uuid);
+        boolean alreadyReported = reportedFailures.remove(uuid);
+        if (hadJoined || alreadyReported || !logFailed) {
+            // Normal quit, a failure already reported by an earlier stage, or
+            // failure logging disabled - nothing more to do.
+            return;
+        }
+        ConnectionRecord record = ConnectionSnapshot.forConnectionClose(event, plugin);
         String number = registry.register(record);
-        announceFailure(ConnectionSnapshot.nameOf(event), "VALIDATION_FAILED", number);
+        announceFailure(event.getPlayerName(), "CONNECTION_LOST", number);
+    }
+
+    /**
+     * Registers and announces a failure once per connection. The UUID is held in
+     * {@link #reportedFailures} so the later {@link PlayerConnectionCloseEvent}
+     * for the same connection does not report it a second time.
+     */
+    private void reportFailure(UUID uuid, Supplier<ConnectionRecord> recordSupplier,
+                               String name, String reason) {
+        if (uuid != null && !reportedFailures.add(uuid)) {
+            return;
+        }
+        ConnectionRecord record = recordSupplier.get();
+        String number = registry.register(record);
+        announceFailure(name, reason, number);
     }
 
     // ------------------------------------------------------------------
