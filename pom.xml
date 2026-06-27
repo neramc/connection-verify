@@ -51,16 +51,14 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <!--
-          Build target. These defaults target the newest supported line (26.x).
-          The 1.21.x branch / CI overrides them, e.g.:
-            -Dpaper.version=1.21.4-R0.1-SNAPSHOT -Dmaven.compiler.release=21 \
-            -Dapi.version=1.21 -Dtarget.id=mc1.21 -Dmc.range="1.21.4 - 1.21.x"
+          Build target. This branch (1.21.x) targets the Minecraft 1.21.x line
+          (Java 21). The 26.x / main branches default to the newest line.
         -->
-        <paper.version>26.2.build.34-alpha</paper.version>
-        <maven.compiler.release>25</maven.compiler.release>
-        <api.version>26.2</api.version>
-        <target.id>mc26</target.id>
-        <mc.range>1.21.4 - 26.x</mc.range>
+        <paper.version>1.21.4-R0.1-SNAPSHOT</paper.version>
+        <maven.compiler.release>21</maven.compiler.release>
+        <api.version>1.21</api.version>
+        <target.id>mc1.21</target.id>
+        <mc.range>1.21.4 - 1.21.x</mc.range>
     </properties>
 
     <repositories>
