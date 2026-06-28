@@ -49,7 +49,7 @@ a named disconnect, so a connection is never counted twice.
 | **Equipment & inventory** | armor, hands, held slot, used slots, ender chest |
 | **Location** | coordinates, facing, biome, light, chunk, respawn/death points |
 | **World** | difficulty, weather, time, moon phase, border, counts |
-| **Result** *(failures)* | login stage, result, kick message |
+| **Result** *(failures)* | login stage, result, kick message; for drops also the disconnect reason, its **category** and **likely cause**, and any exception from the log |
 | **Server** | versions, MOTD, TPS, MSPT, op/whitelist/ban counts, worlds, plugins |
 | **Runtime / Environment** | Java, OS, memory, GC, threads, classes, uptime |
 | **System / hardware** | CPU load, physical & swap memory, committed virtual memory, process info, network interfaces |

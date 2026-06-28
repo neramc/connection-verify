@@ -15,6 +15,7 @@
  */
 package com.neramc.connectionverify;
 
+import com.neramc.connectionverify.capture.DisconnectReasonCache;
 import com.neramc.connectionverify.command.AdminCommand;
 import com.neramc.connectionverify.command.CntCommand;
 import com.neramc.connectionverify.config.PluginConfig;
@@ -89,6 +90,7 @@ public final class ConnectionVerifyPlugin extends JavaPlugin {
             networkDropWatcher.uninstall();
             networkDropWatcher = null;
         }
+        DisconnectReasonCache.clear();
         getLogger().info("Connection Verify disabled.");
     }
 

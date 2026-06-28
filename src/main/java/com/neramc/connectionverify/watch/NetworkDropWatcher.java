@@ -17,6 +17,8 @@ package com.neramc.connectionverify.watch;
 
 import com.neramc.connectionverify.ConnectionVerifyPlugin;
 import com.neramc.connectionverify.capture.ConnectionSnapshot;
+import com.neramc.connectionverify.capture.DisconnectAnalysis;
+import com.neramc.connectionverify.capture.DisconnectReasonCache;
 import com.neramc.connectionverify.config.CaptureSettings;
 import com.neramc.connectionverify.config.PluginConfig;
 import com.neramc.connectionverify.connection.ConnectionRecord;
@@ -67,6 +69,17 @@ public final class NetworkDropWatcher extends AbstractAppender {
      */
     private static final Pattern DROP_PATTERN =
             Pattern.compile("^/(\\S+) lost connection: (.+)$");
+
+    /** Extracts the reason tail from any {@code lost connection: <reason>} line. */
+    private static final Pattern REASON_PATTERN =
+            Pattern.compile("lost connection: (.+)$");
+
+    /**
+     * Finds the {@code /<ip>[:port]} token in a named line, so the reason can be
+     * cached by host for the matching {@code PlayerConnectionCloseEvent}.
+     */
+    private static final Pattern ADDRESS_PATTERN =
+            Pattern.compile("/(\\[[0-9A-Fa-f:]+\\]|[0-9]{1,3}(?:\\.[0-9]{1,3}){3})(?::\\d+)?");
 
     private final ConnectionVerifyPlugin plugin;
 
@@ -120,40 +133,114 @@ public final class NetworkDropWatcher extends AbstractAppender {
         if (message == null || message.indexOf(NEEDLE) < 0) {
             return;
         }
-        Matcher matcher = DROP_PATTERN.matcher(message.trim());
-        if (!matcher.matches()) {
+        String line = message.trim();
+        String reason = reasonOf(line);
+        if (reason == null) {
             return;
         }
-        schedule(matcher.group(1), matcher.group(2));
+        String thrown = summarizeThrown(safeThrown(event));
+
+        Matcher nameless = DROP_PATTERN.matcher(line);
+        if (nameless.matches()) {
+            // A nameless raw drop: cache the reason and register a numbered record,
+            // because no Bukkit/Paper event will ever fire for it.
+            String address = nameless.group(1);
+            DisconnectReasonCache.remember(hostKey(address), reason, thrown);
+            schedule(address, reason, thrown);
+            return;
+        }
+        // A named (or otherwise event-handled) drop: only cache the reason so the
+        // matching PlayerConnectionCloseEvent record can report it. Do not register
+        // here - that would double-count a connection the listener already handles.
+        String address = addressOf(line);
+        if (address != null) {
+            DisconnectReasonCache.remember(hostKey(address), reason, thrown);
+        }
     }
 
     /** Bounces capture + registration onto the main server thread. */
-    private void schedule(String address, String reason) {
+    private void schedule(String address, String reason, String thrown) {
         if (!plugin.isEnabled()) {
             return;
         }
         try {
-            plugin.getServer().getScheduler().runTask(plugin, () -> report(address, reason));
+            plugin.getServer().getScheduler().runTask(plugin, () -> report(address, reason, thrown));
         } catch (Throwable ignored) {
             // Server shutting down or scheduler unavailable; drop it silently.
         }
     }
 
-    private void report(String address, String reason) {
+    private void report(String address, String reason, String thrown) {
         PluginConfig config = plugin.config();
         if (!config.logFailed() || !config.networkDrops()) {
             return;
         }
         CaptureSettings settings = config.captureSettings();
-        ConnectionRecord record = ConnectionSnapshot.forNetworkDrop(address, reason, plugin, settings);
+        ConnectionRecord record = ConnectionSnapshot.forNetworkDrop(address, reason, thrown, plugin, settings);
         String number = plugin.registry().register(record);
         if (config.announceFailed()) {
             Messages messages = plugin.messages();
             messages.console("console.network-drop",
                     Messages.placeholder("address", displayAddress(settings, address)),
-                    Messages.placeholder("reason", reason));
+                    Messages.placeholder("reason", reason),
+                    Messages.placeholder("category", DisconnectAnalysis.analyze(reason).category()));
             messages.console("console.connection-number", Messages.placeholder("number", number));
         }
+    }
+
+    private static String reasonOf(String line) {
+        Matcher matcher = REASON_PATTERN.matcher(line);
+        return matcher.find() ? matcher.group(1).trim() : null;
+    }
+
+    private static String addressOf(String line) {
+        Matcher matcher = ADDRESS_PATTERN.matcher(line);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    /** Reduces an address (or {@code host:port}) to the bare host used as a cache key. */
+    private static String hostKey(String address) {
+        String[] hostPort = ConnectionSnapshot.splitHostPort(address);
+        String host = hostPort[0];
+        if (host == null) {
+            return null;
+        }
+        if (host.startsWith("[") && host.endsWith("]") && host.length() > 2) {
+            host = host.substring(1, host.length() - 1);
+        }
+        return host;
+    }
+
+    private static Throwable safeThrown(LogEvent event) {
+        try {
+            return event.getThrown();
+        } catch (Throwable throwable) {
+            return null;
+        }
+    }
+
+    /** Summarises a log event's exception (with its root cause) for the report. */
+    private static String summarizeThrown(Throwable thrown) {
+        if (thrown == null) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder(thrown.getClass().getName());
+        if (thrown.getMessage() != null) {
+            sb.append(": ").append(thrown.getMessage());
+        }
+        Throwable root = thrown;
+        int guard = 0;
+        while (root.getCause() != null && root.getCause() != root && guard++ < 12) {
+            root = root.getCause();
+        }
+        if (root != thrown) {
+            sb.append(" (root cause: ").append(root.getClass().getName());
+            if (root.getMessage() != null) {
+                sb.append(": ").append(root.getMessage());
+            }
+            sb.append(')');
+        }
+        return sb.toString();
     }
 
     /** Masks the host (per privacy settings) but keeps the port for the console line. */
