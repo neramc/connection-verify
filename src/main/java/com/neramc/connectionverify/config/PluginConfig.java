@@ -58,6 +58,7 @@ public final class PluginConfig {
 
     private final boolean logSuccessful;
     private final boolean logFailed;
+    private final boolean networkDrops;
 
     private final boolean announceSuccessful;
     private final boolean announceFailed;
@@ -85,6 +86,7 @@ public final class PluginConfig {
 
         this.logSuccessful = config.getBoolean("logging.successful-connections", true);
         this.logFailed = config.getBoolean("logging.failed-connections", true);
+        this.networkDrops = config.getBoolean("logging.network-drops", true);
 
         this.announceSuccessful = config.getBoolean("console.announce-successful", true);
         this.announceFailed = config.getBoolean("console.announce-failed", true);
@@ -142,6 +144,15 @@ public final class PluginConfig {
 
     public boolean logFailed() {
         return logFailed;
+    }
+
+    /**
+     * Whether to catch raw connection drops from the server log (the nameless
+     * {@code /<ip>:<port> lost connection: ...} lines that never reach a Bukkit
+     * event). Also gated by {@link #logFailed()}.
+     */
+    public boolean networkDrops() {
+        return networkDrops;
     }
 
     public boolean announceSuccessful() {

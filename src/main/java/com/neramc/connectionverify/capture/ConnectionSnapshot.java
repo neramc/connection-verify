@@ -226,6 +226,90 @@ public final class ConnectionSnapshot {
     }
 
     // ------------------------------------------------------------------
+    //  Raw connection drop caught from the server log (no Bukkit event)
+    // ------------------------------------------------------------------
+
+    /**
+     * Builds a record for a nameless raw drop scraped from a server
+     * "{@code /<address> lost connection: <reason>}" log line. These never reach
+     * a Bukkit/Paper event (no profile is ever negotiated), so only the address
+     * and reason from the log are known about the peer; the rest of the snapshot
+     * is the usual server/runtime/system context.
+     *
+     * @param rawAddress the {@code host:port} portion of the log line (the
+     *                   leading {@code /} may already be stripped)
+     * @param reason     the disconnect reason text from the log line
+     */
+    public static ConnectionRecord forNetworkDrop(String rawAddress, String reason, JavaPlugin plugin,
+                                                  CaptureSettings settings) {
+        ConnectionRecord record = new ConnectionRecord(Status.FAILED);
+        captureContext(record, plugin, "Log4j network-drop watcher");
+
+        String[] hostPort = splitHostPort(rawAddress);
+        String host = hostPort[0];
+        String port = hostPort[1];
+
+        if (settings.identity()) {
+            Section identity = record.section("Identity");
+            identity.add("Name", "(none - dropped before a profile was negotiated)");
+            identity.add("UUID", "(none)");
+        }
+        if (settings.network()) {
+            Section network = record.section("Network");
+            network.add("IP address", () -> settings.maskIpAddress(host));
+            network.add("Port", port == null ? "(unknown)" : port);
+            network.add("Remote address", () -> {
+                String masked = settings.maskIpAddress(host);
+                return port == null ? masked : masked + ":" + port;
+            });
+            network.add("Raw log value", rawAddress);
+        }
+
+        Section result = record.section("Result");
+        result.add("Stage", "RawConnectionDrop");
+        result.add("Outcome", "Connection dropped before login - no Bukkit/Paper event fired");
+        result.add("Disconnect reason", reason);
+        result.add("Source", "Server log (\"lost connection\"), captured by the network-drop watcher");
+
+        captureServerAndRuntime(record, plugin, settings);
+        return record;
+    }
+
+    /**
+     * Splits a {@code host:port} value (IPv4, or bracketed IPv6 such as
+     * {@code [::1]:25565}) into {@code [host, port]}. A leading {@code /} is
+     * stripped. The port element is {@code null} when it cannot be determined;
+     * an unbracketed IPv6 literal (ambiguous colons) is returned whole as the
+     * host. Never returns {@code null} or a {@code null} host for non-null input.
+     */
+    public static String[] splitHostPort(String rawAddress) {
+        if (rawAddress == null) {
+            return new String[] {null, null};
+        }
+        String value = rawAddress.startsWith("/") ? rawAddress.substring(1) : rawAddress;
+        if (value.startsWith("[")) {
+            int close = value.indexOf(']');
+            if (close > 0) {
+                String host = value.substring(0, close + 1);
+                String port = (close + 2 < value.length() && value.charAt(close + 1) == ':')
+                        ? value.substring(close + 2) : null;
+                return new String[] {host, emptyToNull(port)};
+            }
+        }
+        int colon = value.lastIndexOf(':');
+        // Exactly one colon -> host:port (IPv4 or hostname). Multiple colons in an
+        // unbracketed value mean an IPv6 literal, which has no parseable port here.
+        if (colon > 0 && colon == value.indexOf(':') && colon < value.length() - 1) {
+            return new String[] {value.substring(0, colon), value.substring(colon + 1)};
+        }
+        return new String[] {value, null};
+    }
+
+    private static String emptyToNull(String value) {
+        return (value == null || value.isEmpty()) ? null : value;
+    }
+
+    // ------------------------------------------------------------------
     //  Player sections (successful join)
     // ------------------------------------------------------------------
 
