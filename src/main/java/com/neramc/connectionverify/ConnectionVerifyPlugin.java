@@ -26,6 +26,7 @@ import com.neramc.connectionverify.i18n.Messages;
 import com.neramc.connectionverify.io.LogWriter;
 import com.neramc.connectionverify.listener.ConnectionListener;
 import com.neramc.connectionverify.update.UpdateChecker;
+import com.neramc.connectionverify.watch.NetworkDropWatcher;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -57,6 +58,7 @@ public final class ConnectionVerifyPlugin extends JavaPlugin {
     private ConnectionRegistry registry;
     private LogWriter logWriter;
     private BukkitTask purgeTask;
+    private NetworkDropWatcher networkDropWatcher;
 
     @Override
     public void onEnable() {
@@ -82,6 +84,10 @@ public final class ConnectionVerifyPlugin extends JavaPlugin {
         if (purgeTask != null) {
             purgeTask.cancel();
             purgeTask = null;
+        }
+        if (networkDropWatcher != null) {
+            networkDropWatcher.uninstall();
+            networkDropWatcher = null;
         }
         getLogger().info("Connection Verify disabled.");
     }
@@ -152,6 +158,22 @@ public final class ConnectionVerifyPlugin extends JavaPlugin {
         }
 
         scheduleExpiryPurge();
+        syncNetworkDropWatcher();
+    }
+
+    /**
+     * Installs or removes the log-based network-drop watcher to match the
+     * current {@code logging.network-drops} setting. Safe to call on every
+     * reload: it is a no-op when the desired and actual states already agree.
+     */
+    private void syncNetworkDropWatcher() {
+        boolean wanted = config.networkDrops();
+        if (wanted && networkDropWatcher == null) {
+            networkDropWatcher = NetworkDropWatcher.install(this);
+        } else if (!wanted && networkDropWatcher != null) {
+            networkDropWatcher.uninstall();
+            networkDropWatcher = null;
+        }
     }
 
     private void scheduleExpiryPurge() {

@@ -64,6 +64,16 @@
         <api.version>1.21</api.version>
         <target.id>mc1.21</target.id>
         <mc.range>1.21.4 - 1.21.x</mc.range>
+
+        <!--
+          Log4j2 core is used (provided, never bundled) by the network-drop
+          watcher to read raw "lost connection" lines that never reach a Bukkit
+          event. paper-api only exposes log4j-api, so core is declared here.
+          Pinned to the oldest log4j the supported range ships (2.17.1 on
+          1.21.4; 26.x ships 2.26.0) so every API referenced is present at
+          runtime on both lines. The server always provides the real classes.
+        -->
+        <log4j.version>2.17.1</log4j.version>
     </properties>
 
     <repositories>
@@ -78,6 +88,17 @@
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
             <version>${paper.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!--
+          Provided: the Paper server already ships log4j-core on its classpath,
+          so this is compile-only and is never shaded into the plugin jar.
+        -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>${log4j.version}</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

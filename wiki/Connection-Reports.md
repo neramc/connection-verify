@@ -17,17 +17,23 @@ plugins/connection-verify/<file.folder>/<number>.<ext>
 A connection is rejected/lost at exactly **one** stage, so each attempt yields
 **exactly one** number (normal quits are never counted as failures).
 
-| Stage | Event | Examples |
-|-------|-------|----------|
+| Stage | Event / source | Examples |
+|-------|----------------|----------|
 | Successful join | `PlayerJoinEvent` | a normal join |
 | Pre-login | `AsyncPlayerPreLoginEvent` | ban, whitelist, server full |
 | Login | `PlayerLoginEvent` | plugin disallows the login |
 | Connection dropped | `PlayerConnectionCloseEvent` | network errors, timeouts, generic disconnects after auth but before joining |
+| Raw drop | server log (Log4j2 watcher) | nameless sockets logged as `/<ip>:<port> lost connection: …`, closed before any profile exists (e.g. *"Connection failed. Please try again or contact an administrator."*) |
 
-> **Limitation:** rejections during the *raw protocol handshake before
-> authentication* (most notably an incompatible client/server version) are
-> closed by the server before any plugin can observe them, so they cannot be
-> assigned a number.
+The raw-drop stage has no Bukkit event — those connections die before a name or
+profile exists — so Connection Verify reads them from the server log through a
+lightweight Log4j2 appender on the root logger (toggle with
+`logging.network-drops`). The leading `/` distinguishes a nameless raw drop from
+a named disconnect, so a connection is never counted twice.
+
+> **Limitation:** a drop is numbered only if the server logs a `lost connection`
+> line for it. A handshake closed so early that the server writes no log line at
+> all (for example some incompatible-version cases) still cannot be observed.
 
 ## Sections
 

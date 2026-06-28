@@ -24,6 +24,7 @@ All settings live in `plugins/connection-verify/config.yml`. After editing, run
 |-----|---------|-------------|
 | `logging.successful-connections` | `true` | Record (and number) successful joins. |
 | `logging.failed-connections` | `true` | Record (and number) failed/dropped attempts. |
+| `logging.network-drops` | `true` | Also number nameless raw drops the server logs as `/<ip>:<port> lost connection: …` (no Bukkit event; read from the log via a Log4j2 watcher). Needs `failed-connections`. |
 | `console.announce-successful` | `true` | Print the number for successful joins. |
 | `console.announce-failed` | `true` | Print the number for failed connections. |
 | `console.use-colors` | `true` | Colored console output (disable for plain logs). |

@@ -18,6 +18,8 @@ console:
   join: "<green>접속 <white><name></white></green>"
   connection-number: "<aqua>연결 번호 </aqua><yellow><bold><number></bold></yellow>"
   failed: "<red>접속 실패: </red><white><name></white> <gray>(<reason>)</gray>"
+  # 서버 로그에서 잡아낸 원시 연결 끊김 (플레이어 이름이 협상되기 전).
+  network-drop: "<red>연결 끊김: </red><white><address></white> <gray>(<reason>)</gray>"
 
 command:
   no-permission: "<red>이 명령어를 사용할 권한이 없습니다.</red>"

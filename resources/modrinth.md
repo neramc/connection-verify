@@ -30,11 +30,15 @@ Join Steve
 Connection number 4821
 ```
 
-A failed/dropped connection gets one too:
+A failed/dropped connection gets one too — including the nameless raw drops the
+server logs as `/<ip>:<port> lost connection: …`, which have no Bukkit event:
 
 ```
 Connection failed: Steve (KICK_BANNED)
 Connection number 7392
+
+Connection dropped: 203.0.113.7:51234 (Connection failed. Please try again or contact an administrator.)
+Connection number 1574
 ```
 
 Run the command in the console:
