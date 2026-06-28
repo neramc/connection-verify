@@ -1,8 +1,16 @@
+<div align="center">
+
 # Connection Verify
+
+<img width="841" height="314" alt="example screenshot"  src="https://github.com/user-attachments/assets/ccf9996d-1306-4afc-a549-5ad6c7db59f7" />
+
+*This screenshot is example*
 
 [![Build](https://github.com/neramc/connection-verify/actions/workflows/build.yml/badge.svg)](https://github.com/neramc/connection-verify/actions/workflows/build.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE.md)
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.21.4%20--%2026.x-brightgreen.svg)](#compatibility)
+
+</div>
 
 **Connection Verify** is a lightweight Paper plugin that gives every connection
 to your server a short, memorable **connection number** and lets you save a
