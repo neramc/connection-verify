@@ -40,9 +40,13 @@ Connection number 7392
 `/<ip>:<port> lost connection: …`, which have no Bukkit event at all:
 
 ```
-Connection dropped: 203.0.113.7:51234 (Connection failed. Please try again or contact an administrator.)
+Connection dropped: 203.0.113.7:51234 (Connection failed. Please try again or contact an administrator.) [Early failure]
 Connection number 1574
 ```
+
+The tag in brackets is a quick classification of **why** it dropped (e.g.
+`Timeout`, `Connection reset`, `Early failure`); the saved report adds the full
+reason text, a plain‑English likely cause, and any exception from the log.
 
 **2. You want the details.** Type the number in the console (or in‑game as an
 operator):
@@ -74,7 +78,7 @@ Each report is grouped into clearly labelled sections:
 | **Session** | first join, first played, last login/seen, op, whitelist, ban, game mode |
 | **Player state** | health, hunger, XP, movement, pose, air, fire, velocity, potion effects, scoreboard tags |
 | **Location / World** | coordinates, respawn & death points, difficulty, weather, entity/player counts |
-| **Result** *(failures)* | login stage, result and kick message |
+| **Result** *(failures)* | login stage, result/kick message, and — for drops — the disconnect reason, a *category* and *likely cause*, plus any exception from the log |
 | **Server** | software, versions, MOTD, TPS, MSPT, tick state, loaded plugins |
 | **Runtime** | Java, OS, CPU, memory, GC, threads, classes, uptime |
 | **System / hardware** | CPU load, physical & swap memory, committed virtual memory, process id/CPU time, network interfaces, data model |

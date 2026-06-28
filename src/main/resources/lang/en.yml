@@ -19,7 +19,8 @@ console:
   connection-number: "<aqua>Connection number </aqua><yellow><bold><number></bold></yellow>"
   failed: "<red>Connection failed: </red><white><name></white> <gray>(<reason>)</gray>"
   # Raw drop caught from the server log (no player name was negotiated).
-  network-drop: "<red>Connection dropped: </red><white><address></white> <gray>(<reason>)</gray>"
+  # <category> is a short classification of why it dropped (e.g. Timeout).
+  network-drop: "<red>Connection dropped: </red><white><address></white> <gray>(<reason>)</gray> <dark_gray>[<category>]</dark_gray>"
 
 command:
   no-permission: "<red>You do not have permission to use this command.</red>"
