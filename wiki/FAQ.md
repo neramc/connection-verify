@@ -11,11 +11,16 @@ Connection numbers are kept **in memory** for the current server session, and
 are bounded by `records.max-in-memory` / `records.expire-after-minutes`. Save
 the report while the server is still running, and before the number is evicted.
 
-### A player joined with the wrong version and got no number. Why?
+### A connection failed but got no number. Why?
 
-Version mismatches (and other pre-authentication handshake failures) are closed
-by the server before any plugin can observe them, so they cannot be numbered.
-See [Connection Reports](Connection-Reports#which-connections-get-a-number).
+Most failures *are* numbered, including nameless raw drops the server logs as
+`/<ip>:<port> lost connection: …` (caught by the `logging.network-drops`
+watcher). The only ones that cannot be numbered are handshakes closed so early
+that the server writes **no log line at all** — some incompatible-version cases
+close before anything is logged. If you do see a `lost connection` line with no
+number, make sure `logging.network-drops` and `logging.failed-connections` are
+enabled. See
+[Connection Reports](Connection-Reports#which-connections-get-a-number).
 
 ### Does it work on Spigot/CraftBukkit?
 

@@ -33,8 +33,10 @@ The source is identical across branches; only the build target (`paper.version`,
 
 ## Notes
 
-- Failures during the **pre-authentication handshake** (e.g. an incompatible
-  client version) cannot be assigned a number — see
+- Nameless raw drops the server logs as `/<ip>:<port> lost connection: …` are
+  numbered via the `logging.network-drops` Log4j2 watcher. Only handshakes
+  closed before the server writes **any** log line (e.g. some incompatible-client
+  cases) cannot be numbered — see
   [Connection Reports](Connection-Reports#which-connections-get-a-number).
 - Fields not present on a given build degrade to `(unavailable: …)` rather than
   breaking a report.

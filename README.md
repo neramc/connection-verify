@@ -36,6 +36,14 @@ Connection failed: Steve (KICK_BANNED)
 Connection number 7392
 ```
 
+…including the nameless raw drops the server logs as
+`/<ip>:<port> lost connection: …`, which have no Bukkit event at all:
+
+```
+Connection dropped: 203.0.113.7:51234 (Connection failed. Please try again or contact an administrator.)
+Connection number 1574
+```
+
 **2. You want the details.** Type the number in the console (or in‑game as an
 operator):
 
@@ -92,11 +100,19 @@ counted as failures.
 | Pre‑login | ban, whitelist, server full |
 | Login | plugin disallows the login |
 | Connection dropped | network errors, timeouts, generic *“lost connection”* disconnects after authentication but before joining |
+| Raw drop | nameless sockets the server logs as `/<ip>:<port> lost connection: …` — closed before a profile is ever negotiated (e.g. *“Connection failed. Please try again or contact an administrator.”*) |
 
-> **Note:** rejections during the *raw protocol handshake before authentication*
-> — most notably an incompatible client/server version — are closed by the
-> server before any plugin can observe them, so they cannot be assigned a
-> number. This is a platform limitation, not a plugin bug.
+The first three stages come from Bukkit/Paper events. The **raw drop** stage has
+no event at all — those connections die before a name or profile exists — so
+Connection Verify reads them straight from the server log through a lightweight
+Log4j2 watcher (see `logging.network-drops`). The leading `/` is what tells a
+nameless raw drop apart from a named disconnect, so nothing is ever counted
+twice.
+
+> **Note:** a drop is only numbered if the server actually logs a
+> `lost connection` line for it. A handshake closed so early that the server
+> emits no log line at all still cannot be observed — a platform limitation, not
+> a plugin bug.
 
 ---
 
@@ -135,6 +151,8 @@ The default `config.yml` is fully commented. Highlights:
   the numbers (e.g. 4‑digit `0421` vs `1000`‑`9999`).
 - **`logging.*` / `console.*`** – choose whether successful and/or failed
   connections are recorded and announced, and whether output is colored.
+  `logging.network-drops` (on by default) additionally numbers nameless raw
+  drops read from the server log.
 - **`file.format`** – `text` or `json`. Plus `folder`, `overwrite-existing`,
   and `async-write` (writes happen off the main thread, so saving never lags
   your server).

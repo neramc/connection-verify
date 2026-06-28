@@ -36,6 +36,14 @@ logging:
   successful-connections: true
   # Record (and number) failed / dropped connection attempts.
   failed-connections: true
+  # Also catch raw connection drops that never reach a login event - the
+  # nameless lines the server logs as:
+  #     /<ip>:<port> lost connection: ...
+  # No Bukkit/Paper event fires for these, so the plugin reads them from the
+  # server log through a lightweight Log4j2 appender on the root logger. The
+  # server already provides Log4j2; nothing extra is bundled. Requires
+  # failed-connections (above) to also be enabled.
+  network-drops: true
 
 # ----------------------------------------------------------------------------
 #  Console output
