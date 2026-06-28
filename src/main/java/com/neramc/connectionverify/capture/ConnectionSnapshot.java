@@ -219,10 +219,32 @@ public final class ConnectionSnapshot {
         Section result = record.section("Result");
         result.add("Stage", "PlayerConnectionClose");
         result.add("Outcome", "Connection lost/dropped before the player joined the world");
-        result.add("Disconnect reason", "(not exposed by the Bukkit/Paper API at this stage)");
+        DisconnectReasonCache.Reason cached = recentReasonFor(event.getIpAddress());
+        if (cached != null) {
+            result.add("Disconnect reason", cached.text());
+            DisconnectAnalysis.Result analysis = DisconnectAnalysis.analyze(cached.text());
+            result.add("Reason category", analysis.category());
+            result.add("Likely cause", analysis.explanation());
+            if (cached.thrown() != null && !cached.thrown().isEmpty()) {
+                result.add("Exception (from log)", cached.thrown());
+            }
+            result.add("Reason source", "Server log (\"lost connection\"), matched by IP (best-effort)");
+        } else {
+            result.add("Disconnect reason",
+                    "(not exposed by this event; no matching \"lost connection\" log line was captured)");
+        }
 
         captureServerAndRuntime(record, plugin, settings);
         return record;
+    }
+
+    /** Best-effort lookup of a recently logged disconnect reason for an address. */
+    private static DisconnectReasonCache.Reason recentReasonFor(InetAddress address) {
+        try {
+            return address == null ? null : DisconnectReasonCache.recent(address.getHostAddress());
+        } catch (Throwable throwable) {
+            return null;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -239,9 +261,11 @@ public final class ConnectionSnapshot {
      * @param rawAddress the {@code host:port} portion of the log line (the
      *                   leading {@code /} may already be stripped)
      * @param reason     the disconnect reason text from the log line
+     * @param thrown     a summary of the exception attached to the log event, or
+     *                   {@code null} when the line carried none
      */
-    public static ConnectionRecord forNetworkDrop(String rawAddress, String reason, JavaPlugin plugin,
-                                                  CaptureSettings settings) {
+    public static ConnectionRecord forNetworkDrop(String rawAddress, String reason, String thrown,
+                                                  JavaPlugin plugin, CaptureSettings settings) {
         ConnectionRecord record = new ConnectionRecord(Status.FAILED);
         captureContext(record, plugin, "Log4j network-drop watcher");
 
@@ -269,6 +293,12 @@ public final class ConnectionSnapshot {
         result.add("Stage", "RawConnectionDrop");
         result.add("Outcome", "Connection dropped before login - no Bukkit/Paper event fired");
         result.add("Disconnect reason", reason);
+        DisconnectAnalysis.Result analysis = DisconnectAnalysis.analyze(reason);
+        result.add("Reason category", analysis.category());
+        result.add("Likely cause", analysis.explanation());
+        if (thrown != null && !thrown.isEmpty()) {
+            result.add("Exception (from log)", thrown);
+        }
         result.add("Source", "Server log (\"lost connection\"), captured by the network-drop watcher");
 
         captureServerAndRuntime(record, plugin, settings);
