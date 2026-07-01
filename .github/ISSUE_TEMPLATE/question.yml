@@ -1,0 +1,31 @@
+name: ❓ Question / support
+description: Ask how to do something, or get help with your setup.
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check the [Wiki](https://github.com/neramc/connection-verify/wiki)
+        and the [FAQ](https://github.com/neramc/connection-verify/wiki/FAQ) first —
+        your answer may already be there.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+  - type: input
+    id: cv-version
+    attributes:
+      label: Connection Verify version
+      placeholder: e.g. 2.0.6
+    validations:
+      required: false
+  - type: input
+    id: server
+    attributes:
+      label: Server software & Minecraft version
+      placeholder: e.g. Paper 1.21.4
+    validations:
+      required: false

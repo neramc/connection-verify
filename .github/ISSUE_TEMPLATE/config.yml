@@ -1,0 +1,10 @@
+# Issue chooser configuration.
+# https://docs.github.com/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Documentation (Wiki)
+    url: https://github.com/neramc/connection-verify/wiki
+    about: Installation, configuration, commands, languages, connection reports and FAQ.
+  - name: 💬 Modrinth page
+    url: https://modrinth.com/plugin/connection-verify
+    about: Downloads, version history and the project description.
