@@ -1,0 +1,114 @@
+name: 🐞 Bug report
+description: Report a problem with Connection Verify.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report! The more detail you
+        provide, the faster we can reproduce and fix the issue.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched the [existing issues](https://github.com/neramc/connection-verify/issues?q=is%3Aissue) and this has not been reported yet.
+          required: true
+        - label: I am using the latest version of Connection Verify (or I have noted my version below).
+          required: true
+        - label: I checked the [Wiki](https://github.com/neramc/connection-verify/wiki) and [FAQ](https://github.com/neramc/connection-verify/wiki/FAQ).
+          required: false
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug.
+      placeholder: Tell us what you saw, and what you expected to see.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce the behaviour?
+      placeholder: |
+        1. Start the server with ...
+        2. Connect from ...
+        3. Run /cnt ...
+        4. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      placeholder: What should have happened instead?
+    validations:
+      required: false
+  - type: input
+    id: cv-version
+    attributes:
+      label: Connection Verify version
+      description: Run `/connectionverify version`, or read it from the jar file name.
+      placeholder: e.g. 2.0.6
+    validations:
+      required: true
+  - type: dropdown
+    id: build-target
+    attributes:
+      label: Which jar are you running?
+      options:
+        - "connection-verify-<version>-mc26.jar (Minecraft 26.x, Java 25+)"
+        - "connection-verify-<version>-mc1.21.jar (Minecraft 1.21.4 - 1.21.x, Java 21+)"
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: server
+    attributes:
+      label: Server software & Minecraft version
+      description: The output of `/version`.
+      placeholder: e.g. Paper 1.21.4 (build 200), or Purpur 26.x
+    validations:
+      required: true
+  - type: input
+    id: java
+    attributes:
+      label: Java version
+      placeholder: e.g. Temurin 21.0.5
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console log / connection report
+      description: |
+        Paste relevant console output and/or a saved connection report
+        (`plugins/connection-verify/connection/<number>.txt`). This box renders
+        as code, so backticks are not needed.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: config
+    attributes:
+      label: Your config.yml
+      description: Only needed if you changed it from the defaults.
+      render: yaml
+    validations:
+      required: false
+  - type: textarea
+    id: other-plugins
+    attributes:
+      label: Other plugins
+      description: Especially proxies (Velocity / BungeeCord) or anything touching connections or logging.
+      placeholder: e.g. ViaVersion, Velocity, LuckPerms ...
+    validations:
+      required: false
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+    validations:
+      required: false
