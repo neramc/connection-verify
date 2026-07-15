@@ -81,8 +81,11 @@ public final class UpdateChecker {
                 return;
             }
 
-            String latest = matcher.group(1);
-            if (latest.equalsIgnoreCase(currentVersion)) {
+            // Modrinth publishes one version per build target, so the version
+            // number carries a build-metadata suffix (e.g. 2.0.7+mc26). Compare
+            // only the base version so the plain plugin version still matches.
+            String latest = baseVersion(matcher.group(1));
+            if (latest.equalsIgnoreCase(baseVersion(currentVersion))) {
                 report(() -> messages.console("update.up-to-date",
                         Messages.placeholder("current", currentVersion)));
             } else {
@@ -101,5 +104,14 @@ public final class UpdateChecker {
         if (plugin.isEnabled()) {
             plugin.getServer().getScheduler().runTask(plugin, action);
         }
+    }
+
+    /** Strips SemVer build metadata (everything from {@code +}) and surrounding space. */
+    private static String baseVersion(String version) {
+        if (version == null) {
+            return "";
+        }
+        int plus = version.indexOf('+');
+        return (plus >= 0 ? version.substring(0, plus) : version).trim();
     }
 }
