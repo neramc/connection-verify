@@ -214,18 +214,22 @@ jobs:
           Built from commit ${TARGET_SHA}." \
             --latest
 
-      # Requires two repo settings (both skipped cleanly until present):
+      # Modrinth Content Rules 5.7: each version may contain only ONE primary
+      # file, matching its own Minecraft/loader versions. So the two jars are
+      # published as two separate versions, distinguished by a build-metadata
+      # suffix on the version number. Requires two repo settings (both skipped
+      # cleanly until present):
       #   * secret   MODRINTH_TOKEN       - a Modrinth PAT with "Create versions"
       #   * variable MODRINTH_PROJECT_ID  - the base62 project ID (NOT the slug)
-      - name: Publish to Modrinth (optional)
+      - name: Publish mc1.21 to Modrinth (optional)
         if: ${{ env.MODRINTH_TOKEN != '' && env.MODRINTH_PROJECT_ID != '' }}
         uses: Kir-Antipov/mc-publish@v3.3
         with:
           modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          files: dist/connection-verify-*.jar
-          name: Connection Verify ${{ needs.version.outputs.version }}
-          version: ${{ needs.version.outputs.version }}
+          files: dist/connection-verify-*-mc1.21.jar
+          name: Connection Verify ${{ needs.version.outputs.version }} (MC 1.21.x)
+          version: ${{ needs.version.outputs.version }}+mc1.21
           version-type: release
           loaders: |
             paper
@@ -239,6 +243,22 @@ jobs:
             1.21.9
             1.21.10
             1.21.11
+          changelog: "See https://github.com/neramc/connection-verify/releases/tag/${{ env.TAG }}"
+
+      - name: Publish mc26 to Modrinth (optional)
+        if: ${{ env.MODRINTH_TOKEN != '' && env.MODRINTH_PROJECT_ID != '' }}
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          files: dist/connection-verify-*-mc26.jar
+          name: Connection Verify ${{ needs.version.outputs.version }} (MC 26.x)
+          version: ${{ needs.version.outputs.version }}+mc26
+          version-type: release
+          loaders: |
+            paper
+            purpur
+          game-versions: |
             26.1
             26.1.1
             26.1.2
