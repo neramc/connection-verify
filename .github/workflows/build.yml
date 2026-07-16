@@ -258,9 +258,8 @@ jobs:
           loaders: |
             paper
             purpur
+          # Built with api-version 26.2, so Paper refuses to load it on an older
+          # 26.x server (26.1.x); only advertise versions it actually runs on.
           game-versions: |
-            26.1
-            26.1.1
-            26.1.2
             26.2
           changelog: "See https://github.com/neramc/connection-verify/releases/tag/${{ env.TAG }}"
