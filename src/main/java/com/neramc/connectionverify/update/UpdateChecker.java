@@ -49,9 +49,9 @@ public final class UpdateChecker {
         this.currentVersion = plugin.getPluginMeta().getVersion();
     }
 
-    /** Performs the check asynchronously; results are logged on the main thread. */
+    /** Performs the check asynchronously; results are logged on a tick thread. */
     public void checkAsync() {
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, this::check);
+        plugin.getServer().getAsyncScheduler().runNow(plugin, task -> check());
     }
 
     private void check() {
@@ -102,7 +102,7 @@ public final class UpdateChecker {
 
     private void report(Runnable action) {
         if (plugin.isEnabled()) {
-            plugin.getServer().getScheduler().runTask(plugin, action);
+            plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> action.run());
         }
     }
 

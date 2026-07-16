@@ -196,10 +196,16 @@ Connection numbers are kept in memory for the current server session; run
 
 Connection Verify is published as two builds from a single codebase:
 
-| Build | Minecraft / Paper | Java |
-|-------|-------------------|------|
+| Build | Minecraft | Java |
+|-------|-----------|------|
 | `connection-verify-<version>-mc1.21.jar` | 1.21.4 – 1.21.x | 21+ |
-| `connection-verify-<version>-mc26.jar` | 26.x | 25+ |
+| `connection-verify-<version>-mc26.jar` | 26.2 | 25+ |
+
+**Server software:** runs on **Paper** and Paper forks — **Purpur** and
+**Folia** (it uses Paper's region schedulers throughout, so it is Folia‑native).
+It is a Paper plugin and relies on Paper‑only API, so it does **not** run on
+CraftBukkit/Spigot, on proxies (Velocity/BungeeCord/Waterfall), or as a
+Fabric/Forge mod.
 
 Pick the jar for your server's version. Both are built and released
 automatically.
