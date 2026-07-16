@@ -191,12 +191,83 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download built jars
         uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+
+      # Build a categorised changelog from the commits since the previous
+      # release tag. Produces two files, reused by every publish target:
+      #   * gh-notes.md          - GitHub release body (adds a downloads footer)
+      #   * modrinth-changelog.md - the same changelog, used for both Modrinth versions
+      - name: Generate release notes
+        env:
+          GH_REPO: neramc/connection-verify
+        run: |
+          set -euo pipefail
+          prev="$(git tag --list 'v*' --sort=-v:refname | grep -vx "$TAG" | head -1 || true)"
+          if [ -n "$prev" ] && git rev-parse -q --verify "refs/tags/$prev^{commit}" >/dev/null; then
+            range="${prev}..${GITHUB_SHA}"
+            compare="https://github.com/${GH_REPO}/compare/${prev}...${TAG}"
+          else
+            range="${GITHUB_SHA}"
+            compare="https://github.com/${GH_REPO}/commits/${TAG}"
+          fi
+          git log --no-merges --pretty=format:'%H%x1f%s' "$range" > commits.tsv || true
+          python3 - "$compare" <<'PY'
+          import os, re, sys
+          compare = sys.argv[1]
+          version = os.environ["VERSION"]
+          buckets = {"feat": "✨ Features", "fix": "🐞 Fixes", "perf": "⚡ Performance",
+                     "refactor": "♻️ Refactoring", "docs": "📝 Documentation",
+                     "build": "🔧 Build & CI", "ci": "🔧 Build & CI", "test": "✅ Tests",
+                     "style": "🎨 Style", "chore": "🧹 Chores"}
+          order = ["✨ Features", "🐞 Fixes", "⚡ Performance", "♻️ Refactoring",
+                   "📝 Documentation", "🔧 Build & CI", "✅ Tests", "🎨 Style",
+                   "🧹 Chores", "📌 Other"]
+          groups = {k: [] for k in order}
+          seen = set()
+          try:
+              lines = open("commits.tsv", encoding="utf-8").read().splitlines()
+          except FileNotFoundError:
+              lines = []
+          for line in lines:
+              if "\x1f" not in line:
+                  continue
+              sha, subj = line.split("\x1f", 1)
+              subj = subj.strip()
+              if not subj or subj.startswith("chore(release): bump version"):
+                  continue
+              if subj in seen:            # de-dupe cherry-picks across branches
+                  continue
+              seen.add(subj)
+              m = re.match(r'^(\w+)(?:\([^)]*\))?!?:\s*(.*)$', subj)
+              title, text = "📌 Other", subj
+              if m and m.group(1).lower() in buckets:
+                  title, text = buckets[m.group(1).lower()], (m.group(2).strip() or subj)
+              groups[title].append(f"- {text} ({sha[:7]})")
+          out = []
+          for name in order:
+              if groups[name]:
+                  out.append(f"### {name}")
+                  out.extend(groups[name])
+                  out.append("")
+          body = "\n".join(out).strip() or "- Maintenance release."
+          with open("modrinth-changelog.md", "w", encoding="utf-8") as f:
+              f.write(f"{body}\n\n**Full changelog:** {compare}\n")
+          gh = [f"## Connection Verify {version}", "", body, "", "---", "",
+                "### 📦 Downloads",
+                f"- `connection-verify-{version}-mc1.21.jar` — Minecraft 1.21.4–1.21.x, Java 21+ (Paper / Purpur / Folia)",
+                f"- `connection-verify-{version}-mc26.jar` — Minecraft 26.2, Java 25+ (Paper / Purpur / Folia)",
+                "", f"**Full changelog:** {compare}"]
+          with open("gh-notes.md", "w", encoding="utf-8") as f:
+              f.write("\n".join(gh) + "\n")
+          print(open("gh-notes.md", encoding="utf-8").read())
+          PY
 
       - name: Publish to GitHub Releases
         env:
@@ -206,12 +277,7 @@ jobs:
           gh release create "$TAG" dist/connection-verify-*.jar \
             --target "${TARGET_SHA}" \
             --title "Connection Verify ${VERSION}" \
-            --notes "Automated release of Connection Verify \`${VERSION}\`.
-
-          - \`connection-verify-${VERSION}-mc1.21.jar\` - Minecraft 1.21.4 - 1.21.x (Java 21+)
-          - \`connection-verify-${VERSION}-mc26.jar\` - Minecraft 26.x (Java 25+)
-
-          Built from commit ${TARGET_SHA}." \
+            --notes-file gh-notes.md \
             --latest
 
       # Modrinth Content Rules 5.7: each version may contain only ONE primary
@@ -234,6 +300,7 @@ jobs:
           loaders: |
             paper
             purpur
+            folia
           game-versions: |
             1.21.4
             1.21.5
@@ -243,7 +310,7 @@ jobs:
             1.21.9
             1.21.10
             1.21.11
-          changelog: "See https://github.com/neramc/connection-verify/releases/tag/${{ env.TAG }}"
+          changelog-file: modrinth-changelog.md
 
       - name: Publish mc26 to Modrinth (optional)
         if: ${{ env.MODRINTH_TOKEN != '' && env.MODRINTH_PROJECT_ID != '' }}
@@ -258,8 +325,9 @@ jobs:
           loaders: |
             paper
             purpur
+            folia
           # Built with api-version 26.2, so Paper refuses to load it on an older
           # 26.x server (26.1.x); only advertise versions it actually runs on.
           game-versions: |
             26.2
-          changelog: "See https://github.com/neramc/connection-verify/releases/tag/${{ env.TAG }}"
+          changelog-file: modrinth-changelog.md
