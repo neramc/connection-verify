@@ -4,7 +4,7 @@
 
 Connection Verify is a lightweight, privacy-friendly Paper plugin for server operators and admins. When a player connects (or **fails** to connect), it prints a connection number to the console; type `cnt <number>` and the plugin writes an exhaustive report of that connection to a file.
 
-No database. No web server. No data leaves your machine.
+No database. No web server. Reports never leave your machine — they are written only to local files. (See **Privacy & network** below.)
 
 ---
 
@@ -74,12 +74,22 @@ Every field is captured defensively, so a value unavailable on your build is sho
 
 ---
 
+## 🔒 Privacy & network
+
+Connection Verify is designed to keep operator and player data on your own server:
+
+- **Reports stay local.** Connection reports — including IP addresses and system details — are written only to files under `plugins/connection-verify/`. Nothing is uploaded, and the plugin runs no database or web server.
+- **Privacy controls.** `config.yml` offers IP masking (`privacy.mask-ip`, e.g. `203.0.x.x`) and UUID redaction (`privacy.hide-uuid`) for GDPR-conscious networks. You can also disable any capture section you don't want.
+- **One optional outbound request.** The only time the plugin contacts the internet is the **update checker**, which is **off by default** and opt-in via `update-checker.enabled`. When enabled it asks the public Modrinth API **once at startup** whether a newer version exists — no information about your server or players is ever transmitted.
+
+---
+
 ## ✅ Compatibility
 
 | File | Minecraft / Paper | Java |
 |------|-------------------|------|
 | `connection-verify-<version>-mc1.21.jar` | 1.21.4 – 1.21.x | 21+ |
-| `connection-verify-<version>-mc26.jar` | 26.x | 25+ |
+| `connection-verify-<version>-mc26.jar` | 26.2 | 25+ |
 
 Download the jar that matches your server version.
 
