@@ -16,6 +16,7 @@ No database. No web server. Reports never leave your machine — they are writte
 - **Privacy controls** — optional IP masking (`203.0.x.x`) and UUID redaction.
 - **Fully localizable** — bundled English & Korean, add your own language file.
 - **30+ config options** and live reload (`/connectionverify reload`).
+- **Folia-native** — uses Paper's region schedulers, so it runs on Paper, Purpur *and* Folia.
 - **Async everything** — file writes and the optional update check never touch the main thread.
 - **Zero dependencies** — a small, self-contained jar.
 
@@ -90,6 +91,8 @@ Connection Verify is designed to keep operator and player data on your own serve
 |------|-------------------|------|
 | `connection-verify-<version>-mc1.21.jar` | 1.21.4 – 1.21.x | 21+ |
 | `connection-verify-<version>-mc26.jar` | 26.2 | 25+ |
+
+**Runs on Paper, Purpur and Folia** — it uses Paper's region schedulers throughout, so it is Folia-native. (It's a Paper plugin using Paper-only API, so it does not run on CraftBukkit/Spigot, on proxies, or as a mod.)
 
 Download the jar that matches your server version.
 

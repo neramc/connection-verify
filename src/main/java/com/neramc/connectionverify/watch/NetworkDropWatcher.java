@@ -158,13 +158,17 @@ public final class NetworkDropWatcher extends AbstractAppender {
         }
     }
 
-    /** Bounces capture + registration onto the main server thread. */
+    /**
+     * Bounces capture + registration onto a tick thread. Uses Paper's global
+     * region scheduler, which runs uniformly on Paper, Purpur and Folia (Log4j
+     * calls {@link #append} on an arbitrary networking thread).
+     */
     private void schedule(String address, String reason, String thrown) {
         if (!plugin.isEnabled()) {
             return;
         }
         try {
-            plugin.getServer().getScheduler().runTask(plugin, () -> report(address, reason, thrown));
+            plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> report(address, reason, thrown));
         } catch (Throwable ignored) {
             // Server shutting down or scheduler unavailable; drop it silently.
         }

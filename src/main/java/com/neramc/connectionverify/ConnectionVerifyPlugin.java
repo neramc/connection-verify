@@ -28,14 +28,15 @@ import com.neramc.connectionverify.io.LogWriter;
 import com.neramc.connectionverify.listener.ConnectionListener;
 import com.neramc.connectionverify.update.UpdateChecker;
 import com.neramc.connectionverify.watch.NetworkDropWatcher;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
 /**
@@ -49,7 +50,7 @@ import java.util.logging.Level;
  */
 public final class ConnectionVerifyPlugin extends JavaPlugin {
 
-    private static final long PURGE_INTERVAL_TICKS = 1200L; // ~60 seconds
+    private static final long PURGE_INTERVAL_SECONDS = 60L;
 
     private final Properties buildInfo = new Properties();
 
@@ -58,7 +59,7 @@ public final class ConnectionVerifyPlugin extends JavaPlugin {
     private volatile RecordFormatter formatter;
     private ConnectionRegistry registry;
     private LogWriter logWriter;
-    private BukkitTask purgeTask;
+    private ScheduledTask purgeTask;
     private NetworkDropWatcher networkDropWatcher;
 
     @Override
@@ -184,8 +185,10 @@ public final class ConnectionVerifyPlugin extends JavaPlugin {
             purgeTask = null;
         }
         if (config.expireAfterMinutes() > 0L) {
-            purgeTask = getServer().getScheduler().runTaskTimerAsynchronously(
-                    this, registry::purgeExpired, PURGE_INTERVAL_TICKS, PURGE_INTERVAL_TICKS);
+            // Paper's async scheduler runs uniformly on Paper, Purpur and Folia.
+            purgeTask = getServer().getAsyncScheduler().runAtFixedRate(
+                    this, task -> registry.purgeExpired(),
+                    PURGE_INTERVAL_SECONDS, PURGE_INTERVAL_SECONDS, TimeUnit.SECONDS);
         }
     }
 

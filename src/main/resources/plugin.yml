@@ -11,6 +11,8 @@ description: Verify and archive the connection information of joining players.
 author: neramc
 website: https://github.com/neramc/connection-verify
 load: POSTWORLD
+# Uses Paper's region schedulers throughout, so it runs natively on Folia.
+folia-supported: true
 
 commands:
   cnt:
