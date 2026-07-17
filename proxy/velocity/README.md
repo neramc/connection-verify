@@ -32,7 +32,7 @@ Steve disconnected (SUCCESSFUL_LOGIN) [#4821]
 ## Build
 
 ```bash
-mvn -f proxy/velocity/pom.xml clean package
+mvn -f proxy/pom.xml clean package   # builds common + velocity + bungee
 # -> proxy/velocity/target/connection-verify-velocity-<version>.jar
 ```
 
