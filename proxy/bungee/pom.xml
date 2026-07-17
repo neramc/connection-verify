@@ -5,19 +5,14 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.neramc</groupId>
-    <artifactId>connection-verify-velocity</artifactId>
+    <artifactId>connection-verify-bungee</artifactId>
     <version>${revision}</version>
     <packaging>jar</packaging>
 
-    <name>Connection Verify (Velocity)</name>
-    <description>Network control tower: numbers and archives every connection flowing through a Velocity proxy.</description>
+    <name>Connection Verify (BungeeCord)</name>
+    <description>Network control tower: numbers and archives every connection flowing through a BungeeCord/Waterfall proxy.</description>
     <url>https://github.com/neramc/connection-verify</url>
     <inceptionYear>2026</inceptionYear>
-
-    <organization>
-        <name>neramc</name>
-        <url>https://github.com/neramc</url>
-    </organization>
 
     <licenses>
         <license>
@@ -28,11 +23,10 @@
     </licenses>
 
     <properties>
-        <!-- Overridden by CI to match the release version. -->
         <revision>2.0.0</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>17</maven.compiler.release>
-        <velocity.version>3.3.0-SNAPSHOT</velocity.version>
+        <bungee.version>1.21-R0.4</bungee.version>
     </properties>
 
     <repositories>
@@ -49,9 +43,9 @@
             <version>${revision}</version>
         </dependency>
         <dependency>
-            <groupId>com.velocitypowered</groupId>
-            <artifactId>velocity-api</artifactId>
-            <version>${velocity.version}</version>
+            <groupId>net.md-5</groupId>
+            <artifactId>bungeecord-api</artifactId>
+            <version>${bungee.version}</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
@@ -59,28 +53,19 @@
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>
         <defaultGoal>clean package</defaultGoal>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
-            <!-- Filters BuildConstants.java so @Plugin(version = ...) is accurate. -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>templating-maven-plugin</artifactId>
-                <version>3.0.0</version>
-                <executions>
-                    <execution>
-                        <id>filter-src</id>
-                        <goals>
-                            <goal>filter-sources</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
             </plugin>
-            <!-- Bundle the platform-neutral common classes into the plugin jar
-                 (the proxy does not provide them). velocity-api stays provided. -->
+            <!-- Bundle the platform-neutral common classes into the plugin jar. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>

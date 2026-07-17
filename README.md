@@ -218,7 +218,7 @@ purpose‑built builds (each its own download / Modrinth loader):
 |---------|----------|------|
 | Server plugin *(this repo root)* | Paper / Purpur / Folia | Full connection reports |
 | [Velocity “control tower”](proxy/velocity/README.md) | Velocity proxy | Numbers every connection across the network, tracks backend routing |
-| BungeeCord *(planned)* | BungeeCord / Waterfall | Same, for BungeeCord networks |
+| [BungeeCord “control tower”](proxy/bungee/README.md) | BungeeCord / Waterfall | The same, for BungeeCord networks |
 | Fabric / NeoForge *(planned)* | Server + client mod | Server = plugin‑equivalent; client companion sends advanced client info to the server |
 
 ---

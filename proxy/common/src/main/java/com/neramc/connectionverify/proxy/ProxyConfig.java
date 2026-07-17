@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.neramc.connectionverify.velocity;
+package com.neramc.connectionverify.proxy;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -89,7 +89,7 @@ public final class ProxyConfig {
         p.setProperty("privacy.mask-ip-segments", "2");
         p.setProperty("records.max-in-memory", "1000");
         try (OutputStream out = Files.newOutputStream(file)) {
-            p.store(out, "Connection Verify (Velocity) - control-tower configuration");
+            p.store(out, "Connection Verify (proxy) - control-tower configuration");
         }
     }
 

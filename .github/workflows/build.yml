@@ -176,7 +176,7 @@ jobs:
   #  2b. Build the proxy editions (Velocity "control tower").
   # --------------------------------------------------------------------------
   proxy:
-    name: Build proxy (Velocity)
+    name: Build proxy editions
     needs: [ version, validate ]
     runs-on: ubuntu-latest
     steps:
@@ -190,16 +190,18 @@ jobs:
           java-version: 21
           cache: maven
 
-      - name: Build Velocity edition
+      - name: Build proxy editions
         run: >
-          mvn -B -ntp -f proxy/velocity/pom.xml clean package
+          mvn -B -ntp -f proxy/pom.xml clean package
           -Drevision=${{ needs.version.outputs.version }}
 
       - name: Upload proxy jars
         uses: actions/upload-artifact@v4
         with:
           name: connection-verify-proxy
-          path: proxy/velocity/target/connection-verify-velocity-*.jar
+          path: |
+            proxy/velocity/target/connection-verify-velocity-*.jar
+            proxy/bungee/target/connection-verify-bungee-*.jar
           if-no-files-found: error
 
   # --------------------------------------------------------------------------
@@ -297,6 +299,7 @@ jobs:
                 "",
                 "**Proxy control tower:**",
                 f"- `connection-verify-velocity-{version}.jar` — Velocity, Java 17+",
+                f"- `connection-verify-bungee-{version}.jar` — BungeeCord / Waterfall, Java 17+",
                 "", f"**Full changelog:** {compare}"]
           with open("gh-notes.md", "w", encoding="utf-8") as f:
               f.write("\n".join(gh) + "\n")
@@ -380,6 +383,31 @@ jobs:
           version-type: release
           loaders: |
             velocity
+          game-versions: |
+            1.21.4
+            1.21.5
+            1.21.6
+            1.21.7
+            1.21.8
+            1.21.9
+            1.21.10
+            1.21.11
+            26.2
+          changelog-file: modrinth-changelog.md
+
+      - name: Publish BungeeCord to Modrinth (optional)
+        if: ${{ env.MODRINTH_TOKEN != '' && env.MODRINTH_PROJECT_ID != '' }}
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          files: dist/connection-verify-bungee-*.jar
+          name: Connection Verify ${{ needs.version.outputs.version }} (BungeeCord)
+          version: ${{ needs.version.outputs.version }}+bungee
+          version-type: release
+          loaders: |
+            bungeecord
+            waterfall
           game-versions: |
             1.21.4
             1.21.5

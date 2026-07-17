@@ -1,0 +1,4 @@
+name: ConnectionVerify
+main: com.neramc.connectionverify.bungee.ConnectionVerifyBungee
+version: ${project.version}
+author: neramc
