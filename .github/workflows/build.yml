@@ -195,13 +195,20 @@ jobs:
           mvn -B -ntp -f proxy/pom.xml clean package
           -Drevision=${{ needs.version.outputs.version }}
 
+      # Stage both jars into one flat directory so the uploaded artifact keeps
+      # them at its root (a multi-path upload would preserve each jar's
+      # velocity/target and bungee/target structure, breaking the release globs).
+      - name: Stage proxy jars
+        run: |
+          mkdir -p proxy-dist
+          cp proxy/velocity/target/connection-verify-velocity-*.jar proxy-dist/
+          cp proxy/bungee/target/connection-verify-bungee-*.jar proxy-dist/
+
       - name: Upload proxy jars
         uses: actions/upload-artifact@v4
         with:
           name: connection-verify-proxy
-          path: |
-            proxy/velocity/target/connection-verify-velocity-*.jar
-            proxy/bungee/target/connection-verify-bungee-*.jar
+          path: proxy-dist/*.jar
           if-no-files-found: error
 
   # --------------------------------------------------------------------------
