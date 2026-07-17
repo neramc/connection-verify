@@ -4,6 +4,13 @@
 # Maven build output
 target/
 
+# Gradle / Fabric Loom (mod builds)
+.gradle/
+build/
+run/
+*.class.backup
+*.jar.backup
+
 # Java archive file
 *.jar
 
