@@ -173,11 +173,41 @@ jobs:
           if-no-files-found: error
 
   # --------------------------------------------------------------------------
+  #  2b. Build the proxy editions (Velocity "control tower").
+  # --------------------------------------------------------------------------
+  proxy:
+    name: Build proxy (Velocity)
+    needs: [ version, validate ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Build Velocity edition
+        run: >
+          mvn -B -ntp -f proxy/velocity/pom.xml clean package
+          -Drevision=${{ needs.version.outputs.version }}
+
+      - name: Upload proxy jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: connection-verify-proxy
+          path: proxy/velocity/target/connection-verify-velocity-*.jar
+          if-no-files-found: error
+
+  # --------------------------------------------------------------------------
   #  3. Publish a release (GitHub + optionally Modrinth) when main advances.
   # --------------------------------------------------------------------------
   release:
     name: Publish release
-    needs: [ version, build ]
+    needs: [ version, build, proxy ]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
@@ -261,8 +291,12 @@ jobs:
               f.write(f"{body}\n\n**Full changelog:** {compare}\n")
           gh = [f"## Connection Verify {version}", "", body, "", "---", "",
                 "### 📦 Downloads",
-                f"- `connection-verify-{version}-mc1.21.jar` — Minecraft 1.21.4–1.21.x, Java 21+ (Paper / Purpur / Folia)",
-                f"- `connection-verify-{version}-mc26.jar` — Minecraft 26.2, Java 25+ (Paper / Purpur / Folia)",
+                "**Server plugin** (Paper / Purpur / Folia):",
+                f"- `connection-verify-{version}-mc1.21.jar` — Minecraft 1.21.4–1.21.x, Java 21+",
+                f"- `connection-verify-{version}-mc26.jar` — Minecraft 26.2, Java 25+",
+                "",
+                "**Proxy control tower:**",
+                f"- `connection-verify-velocity-{version}.jar` — Velocity, Java 17+",
                 "", f"**Full changelog:** {compare}"]
           with open("gh-notes.md", "w", encoding="utf-8") as f:
               f.write("\n".join(gh) + "\n")
@@ -329,5 +363,31 @@ jobs:
           # Built with api-version 26.2, so Paper refuses to load it on an older
           # 26.x server (26.1.x); only advertise versions it actually runs on.
           game-versions: |
+            26.2
+          changelog-file: modrinth-changelog.md
+
+      # Proxy "control tower" edition - its own Modrinth version under the
+      # velocity loader (one primary file, per Content Rules 5.7).
+      - name: Publish Velocity to Modrinth (optional)
+        if: ${{ env.MODRINTH_TOKEN != '' && env.MODRINTH_PROJECT_ID != '' }}
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          files: dist/connection-verify-velocity-*.jar
+          name: Connection Verify ${{ needs.version.outputs.version }} (Velocity)
+          version: ${{ needs.version.outputs.version }}+velocity
+          version-type: release
+          loaders: |
+            velocity
+          game-versions: |
+            1.21.4
+            1.21.5
+            1.21.6
+            1.21.7
+            1.21.8
+            1.21.9
+            1.21.10
+            1.21.11
             26.2
           changelog-file: modrinth-changelog.md
