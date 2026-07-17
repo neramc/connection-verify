@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.neramc.connectionverify.velocity;
+package com.neramc.connectionverify.proxy;
 
 import java.util.Map;
 
@@ -26,7 +26,7 @@ public final class TextReport {
     public static String render(ConnectionRecord record) {
         StringBuilder sb = new StringBuilder(1024);
         sb.append("================================================================\n");
-        sb.append(" Connection Verify (Velocity) - report ").append(record.number()).append('\n');
+        sb.append(" Connection Verify (proxy) - report ").append(record.number()).append('\n');
         sb.append(" Status     : ").append(record.status()).append('\n');
         sb.append(" Recorded at: ").append(ConnectionRecord.formatTimestamp(record.recordedAt())).append('\n');
         sb.append("================================================================\n");

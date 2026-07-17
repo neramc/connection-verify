@@ -15,6 +15,7 @@
  */
 package com.neramc.connectionverify.velocity;
 
+import com.neramc.connectionverify.proxy.ProxyConfig;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.command.SimpleCommand;
 import net.kyori.adventure.text.Component;

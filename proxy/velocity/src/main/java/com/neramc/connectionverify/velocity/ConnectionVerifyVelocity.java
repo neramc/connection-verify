@@ -16,6 +16,8 @@
 package com.neramc.connectionverify.velocity;
 
 import com.google.inject.Inject;
+import com.neramc.connectionverify.proxy.ConnectionNumberRegistry;
+import com.neramc.connectionverify.proxy.ProxyConfig;
 import com.velocitypowered.api.command.CommandManager;
 import com.velocitypowered.api.command.CommandMeta;
 import com.velocitypowered.api.event.Subscribe;

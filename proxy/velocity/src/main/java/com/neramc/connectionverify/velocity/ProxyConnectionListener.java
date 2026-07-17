@@ -15,6 +15,8 @@
  */
 package com.neramc.connectionverify.velocity;
 
+import com.neramc.connectionverify.proxy.ConnectionRecord;
+import com.neramc.connectionverify.proxy.ProxyConfig;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
