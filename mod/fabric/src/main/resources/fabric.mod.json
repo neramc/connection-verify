@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "connectionverify",
+  "version": "${version}",
+  "name": "Connection Verify",
+  "description": "Gives every connection a number and archives a full report; the client companion adds advanced client-side details.",
+  "authors": ["neramc"],
+  "contact": {
+    "homepage": "https://github.com/neramc/connection-verify",
+    "sources": "https://github.com/neramc/connection-verify"
+  },
+  "license": "Apache-2.0",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.neramc.connectionverify.fabric.ConnectionVerifyFabric"],
+    "client": ["com.neramc.connectionverify.fabric.client.ConnectionVerifyFabricClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16",
+    "minecraft": "~1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
