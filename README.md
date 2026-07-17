@@ -196,11 +196,22 @@ Connection Verify is published as two builds from a single codebase:
 **Server software:** runs on **Paper** and Paper forks — **Purpur** and
 **Folia** (it uses Paper's region schedulers throughout, so it is Folia‑native).
 It is a Paper plugin and relies on Paper‑only API, so it does **not** run on
-CraftBukkit/Spigot, on proxies (Velocity/BungeeCord/Waterfall), or as a
-Fabric/Forge mod.
+CraftBukkit/Spigot.
 
 Pick the jar for your server's version. Both are built and released
 automatically.
+
+### Other editions
+
+The connection number idea is available beyond the Paper plugin, as separate
+purpose‑built builds (each its own download / Modrinth loader):
+
+| Edition | Platform | Role |
+|---------|----------|------|
+| Server plugin *(this repo root)* | Paper / Purpur / Folia | Full connection reports |
+| [Velocity “control tower”](proxy/velocity/README.md) | Velocity proxy | Numbers every connection across the network, tracks backend routing |
+| BungeeCord *(planned)* | BungeeCord / Waterfall | Same, for BungeeCord networks |
+| Fabric / NeoForge *(planned)* | Server + client mod | Server = plugin‑equivalent; client companion sends advanced client info to the server |
 
 ---
 
