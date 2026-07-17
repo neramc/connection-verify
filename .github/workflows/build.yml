@@ -236,11 +236,23 @@ jobs:
       - name: Build Fabric mod
         run: gradle -p mod/fabric build -Pmod_version=${{ needs.version.outputs.version }}
 
-      - name: Upload mod jar
+      - name: Build NeoForge mod
+        run: gradle -p mod/neoforge build -Pmod_version=${{ needs.version.outputs.version }}
+
+      # Stage both mod jars into one flat dir so upload-artifact keeps them at the
+      # archive root (multi-path uploads otherwise preserve each jar's build/libs
+      # ancestry and break the release download globs).
+      - name: Stage mod jars
+        run: |
+          mkdir -p mod-dist
+          cp mod/fabric/build/libs/connection-verify-fabric-*.jar mod-dist/
+          cp mod/neoforge/build/libs/connection-verify-neoforge-*.jar mod-dist/
+
+      - name: Upload mod jars
         uses: actions/upload-artifact@v4
         with:
           name: connection-verify-mod
-          path: mod/fabric/build/libs/connection-verify-fabric-*.jar
+          path: mod-dist/*.jar
           if-no-files-found: error
 
   # --------------------------------------------------------------------------
@@ -342,6 +354,7 @@ jobs:
                 "",
                 "**Server + client mod:**",
                 f"- `connection-verify-fabric-{version}.jar` — Fabric, Minecraft 1.21.4 (needs Fabric API)",
+                f"- `connection-verify-neoforge-{version}.jar` — NeoForge, Minecraft 1.21.4",
                 "", f"**Full changelog:** {compare}"]
           with open("gh-notes.md", "w", encoding="utf-8") as f:
               f.write("\n".join(gh) + "\n")
@@ -479,4 +492,22 @@ jobs:
             1.21.4
           dependencies: |
             fabric-api(required)
+          changelog-file: modrinth-changelog.md
+
+      # Server + client mod, NeoForge build. Minecraft 1.21.4. NeoForge itself is
+      # the only requirement, so no extra library dependency is declared.
+      - name: Publish NeoForge to Modrinth (optional)
+        if: ${{ env.MODRINTH_TOKEN != '' && env.MODRINTH_PROJECT_ID != '' }}
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          files: dist/connection-verify-neoforge-*.jar
+          name: Connection Verify ${{ needs.version.outputs.version }} (NeoForge)
+          version: ${{ needs.version.outputs.version }}+neoforge
+          version-type: release
+          loaders: |
+            neoforge
+          game-versions: |
+            1.21.4
           changelog-file: modrinth-changelog.md
