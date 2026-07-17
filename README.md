@@ -212,7 +212,7 @@ purpose‑built builds (each its own download / Modrinth loader):
 | [Velocity “control tower”](proxy/velocity/README.md) | Velocity proxy | Numbers every connection across the network, tracks backend routing |
 | [BungeeCord “control tower”](proxy/bungee/README.md) | BungeeCord / Waterfall | The same, for BungeeCord networks |
 | [Fabric mod](mod/fabric/README.md) | Server **+** client (Fabric, MC 1.21.4) | Server numbers connections & writes reports; the client companion sends advanced client‑only details to the server |
-| NeoForge *(planned)* | Server + client mod | The same, for NeoForge |
+| [NeoForge mod](mod/neoforge/README.md) | Server **+** client (NeoForge, MC 1.21.4) | The same, on the NeoForge toolchain |
 
 ---
 

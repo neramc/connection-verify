@@ -1,0 +1,31 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "Apache-2.0"
+issueTrackerURL = "https://github.com/neramc/connection-verify/issues"
+
+[[mods]]
+modId = "connectionverify"
+version = "${mod_version}"
+displayName = "Connection Verify"
+authors = "neramc"
+description = '''
+Gives every connection to your server a short, memorable connection number and
+lets you save a complete, human-readable report of that connection to a file.
+The optional client companion sends advanced client-only details (mod list, FPS,
+render distance, client brand, OS, Java, memory) to the server, which merges them
+into the connection's report. Silent on vanilla or modless servers.
+'''
+
+[[dependencies.connectionverify]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.4,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.connectionverify]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.4,1.22)"
+ordering = "NONE"
+side = "BOTH"
